@@ -25,6 +25,7 @@ finished script will be keyless
 ​‎ 
 
 ]]--
+--[[
 
 
 
@@ -41,8 +42,7 @@ finished script will be keyless
 
 
 
-
-
+]]--
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local function secVar(val)
