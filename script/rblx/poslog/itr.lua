@@ -54,6 +54,23 @@ local originalMass = {}
 local antifling = false
 local noclipping = false
 local flingAllRunning = false
+local rainbowOutline = nil
+
+local antiFallConnection
+
+local function startAntiFall()
+    if antiFallConnection then
+        antiFallConnection:Disconnect()
+    end
+    
+    antiFallConnection = humanoid.StateChanged:Connect(function(old, new)
+        if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll then
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end)
+end
+
+startAntiFall()
 
 local tab1 = win:CreateTab("Fling", 4483362458)
 
@@ -134,8 +151,48 @@ end
 
 local bamV
 local bamAV
+local bamV2
 local antiflingConnection
 local noclipConnection
+local rainbowConnection
+
+local function createRainbowOutline()
+    if rainbowOutline then
+        rainbowOutline:Destroy()
+    end
+    
+    rainbowOutline = Instance.new("SelectionBox")
+    rainbowOutline.Name = "RainbowOutline"
+    rainbowOutline.Adornee = torso
+    rainbowOutline.LineThickness = 0.05
+    rainbowOutline.Parent = torso
+    
+    local hue = 0
+    rainbowConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not flinging or not rainbowOutline then
+            if rainbowConnection then
+                rainbowConnection:Disconnect()
+                rainbowConnection = nil
+            end
+            return
+        end
+        
+        hue = (hue + 0.01) % 1
+        rainbowOutline.Color3 = Color3.fromHSV(hue, 1, 1)
+    end)
+end
+
+local function removeRainbowOutline()
+    if rainbowOutline then
+        rainbowOutline:Destroy()
+        rainbowOutline = nil
+    end
+    
+    if rainbowConnection then
+        rainbowConnection:Disconnect()
+        rainbowConnection = nil
+    end
+end
 
 local function startnoclip()
     if noclipping then return end
@@ -177,20 +234,27 @@ local function startfling()
     
     hideparts()
     startnoclip()
+    createRainbowOutline()
     
     torso.CFrame = torso.CFrame
     
     bamV = Instance.new("BodyAngularVelocity")
     bamV.Name = "Spinning"
     bamV.Parent = torso
-    bamV.MaxTorque = Vector3.new(0, math.huge, 0)
+    bamV.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bamV.P = 9e9
     
     bamAV = Instance.new("BodyAngularVelocity")
     bamAV.Name = "Spinningtoo"
     bamAV.Parent = torso
-    bamAV.MaxTorque = Vector3.new(math.huge, 0, math.huge)
+    bamAV.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bamAV.P = 9e9
+    
+    bamV2 = Instance.new("BodyAngularVelocity")
+    bamV2.Name = "Spinning3"
+    bamV2.Parent = torso
+    bamV2.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bamV2.P = 9e9
     
     local t = 0
     game:GetService("RunService").Heartbeat:Connect(function()
@@ -198,8 +262,9 @@ local function startfling()
         
         t = t + (speed * 5)
         
-        bamV.AngularVelocity = Vector3.new(0, t, 0)
-        bamAV.AngularVelocity = Vector3.new(t, 0, t)
+        bamV.AngularVelocity = Vector3.new(t, t, 0)
+        bamAV.AngularVelocity = Vector3.new(0, t, t)
+        bamV2.AngularVelocity = Vector3.new(t, 0, t)
     end)
 end
 
@@ -217,10 +282,16 @@ local function stopfling()
         bamAV = nil
     end
     
+    if bamV2 then
+        bamV2:Destroy()
+        bamV2 = nil
+    end
+    
     torso.RotVelocity = Vector3.new(0, 0, 0)
     
     stopnoclip()
     showparts()
+    removeRainbowOutline()
 end
 
 local flingToggle = tab1:CreateToggle({
@@ -235,6 +306,22 @@ local flingToggle = tab1:CreateToggle({
         end
     end
 })
+
+humanoid.Died:Connect(function()
+    task.wait(5)
+    if plr.Character then
+        char = plr.Character
+        humanoid = char:WaitForChild("Humanoid")
+        torso = char:WaitForChild("HumanoidRootPart")
+        
+        startAntiFall()
+        
+        if flingToggle.CurrentValue then
+            task.wait(0.5)
+            startfling()
+        end
+    end
+end)
 
 local powerSlider = tab1:CreateSlider({
     Name = "Fling Power",
@@ -272,7 +359,7 @@ local massToggle = tab1:CreateToggle({
 
 tab1:CreateParagraph({
     Title = "Info",
-    Content = "Body Mass makes your character extremely heavy so you can push and fling things easier. Enable it for better fling results!"
+    Content = "Body Mass makes your character extremely heavy so you can push and fling things easier. Anti-fall damage is always active!"
 })
 
 local antiflingToggle = tab1:CreateToggle({
@@ -319,7 +406,6 @@ tab3:CreateButton({
         
         flingAllRunning = true
         local targets = {}
-        local startTime = tick()
         
         for _, p in pairs(game.Players:GetPlayers()) do
             if p ~= plr and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -348,23 +434,22 @@ tab3:CreateButton({
         local flinged = {}
         
         spawn(function()
-            while flingAllRunning and tick() - startTime < 3 do
-                for _, target in pairs(targets) do
-                    if not table.find(flinged, target.Name) and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                        local targetRoot = target.Character.HumanoidRootPart
-                        torso.CFrame = targetRoot.CFrame
-                        task.wait(0.1)
-                        table.insert(flinged, target.Name)
-                        
-                        rf:Notify({
-                            Title = "Flinged",
-                            Content = "Flinged " .. target.Name,
-                            Duration = 1,
-                            Image = 4483362458
-                        })
-                    end
+            for _, target in pairs(targets) do
+                if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = target.Character.HumanoidRootPart
+                    
+                    torso.CFrame = targetRoot.CFrame
+                    table.insert(flinged, target.Name)
+                    
+                    rf:Notify({
+                        Title = "Flinging",
+                        Content = "Flinging " .. target.Name,
+                        Duration = 1,
+                        Image = 4483362458
+                    })
+                    
+                    task.wait(3)
                 end
-                task.wait()
             end
             
             torso.CFrame = originalPos
@@ -386,7 +471,7 @@ tab3:CreateButton({
 
 tab3:CreateParagraph({
     Title = "How It Works",
-    Content = "Fling All teleports your spinning torso to every player for 3 seconds total. Each player is only targeted once. Perfect for clearing servers!"
+    Content = "Fling All teleports your spinning torso inside each player's body for 3 seconds. Each player is only targeted once. Perfect for clearing servers!"
 })
 
 local tab2 = win:CreateTab("Settings", 4483362458)
@@ -425,10 +510,27 @@ tab2:CreateButton({
         if antiflingConnection then
             antiflingConnection:Disconnect()
         end
-        win:Destroy()
+        if antiFallConnection then
+            antiFallConnection:Disconnect()
+        end
+        if noclipConnection then
+            noclipConnection:Disconnect()
+        end
+        if rainbowConnection then
+            rainbowConnection:Disconnect()
+        end
+        
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj.Name == "ChatGui" or obj.Name == "RainbowOutline" then
+                obj:Destroy()
+            end
+        end
+        
+        game:GetService("CoreGui"):FindFirstChild("Rayfield"):Destroy()
+        
         rf:Notify({
             Title = "Unloaded",
-            Content = "Script has been unloaded.",
+            Content = "Script unloaded successfully.",
             Duration = 2,
             Image = 4483362458
         })
@@ -437,12 +539,12 @@ tab2:CreateButton({
 
 tab2:CreateParagraph({
     Title = "About",
-    Content = "Torso rotate fling script by itrscripts. Your torso spins rapidly in all directions while your body parts are invisible. Use Body Mass for extra power!"
+    Content = "Torso rotate fling script by itrscripts. Your torso spins in all directions with rainbow outline. Anti-fall damage always active!"
 })
 
 rf:Notify({
     Title = "Torso Fling Loaded",
-    Content = "Toggle fling to start spinning!",
+    Content = "Toggle fling to start! Anti-fall is active.",
     Duration = 3,
     Image = 4483362458
 })
@@ -457,8 +559,12 @@ plr.CharacterAdded:Connect(function(newchar)
     antifling = false
     noclipping = false
     
+    startAntiFall()
+    
     if bamV then bamV:Destroy() end
     if bamAV then bamAV:Destroy() end
+    if bamV2 then bamV2:Destroy() end
     if antiflingConnection then antiflingConnection:Disconnect() end
     if noclipConnection then noclipConnection:Disconnect() end
+    if rainbowConnection then rainbowConnection:Disconnect() end
 end)
