@@ -57,16 +57,30 @@ local flingAllRunning = false
 local rainbowOutline = nil
 
 local antiFallConnection
+local antiFallRenderConnection
 
 local function startAntiFall()
     if antiFallConnection then
         antiFallConnection:Disconnect()
     end
+    if antiFallRenderConnection then
+        antiFallRenderConnection:Disconnect()
+    end
     
-    antiFallConnection = humanoid.StateChanged:Connect(function(old, new)
-        if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll then
-            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    local rs = game:GetService("RunService")
+    local z = Vector3.zero
+    
+    antiFallConnection = rs.Heartbeat:Connect(function()
+        if not torso or not torso.Parent then
+            if antiFallConnection then
+                antiFallConnection:Disconnect()
+            end
+            return
         end
+        local v = torso.AssemblyLinearVelocity
+        torso.AssemblyLinearVelocity = z
+        antiFallRenderConnection = rs.RenderStepped:Wait()
+        torso.AssemblyLinearVelocity = v
     end)
 end
 
@@ -238,6 +252,12 @@ local function startfling()
     
     torso.CFrame = torso.CFrame
     
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Massless = true
+        end
+    end
+    
     bamV = Instance.new("BodyAngularVelocity")
     bamV.Name = "Spinning"
     bamV.Parent = torso
@@ -271,6 +291,12 @@ end
 local function stopfling()
     if not flinging then return end
     flinging = false
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Massless = false
+        end
+    end
     
     if bamV then
         bamV:Destroy()
@@ -512,6 +538,9 @@ tab2:CreateButton({
         end
         if antiFallConnection then
             antiFallConnection:Disconnect()
+        end
+        if antiFallRenderConnection then
+            antiFallRenderConnection:Disconnect()
         end
         if noclipConnection then
             noclipConnection:Disconnect()
