@@ -27,6 +27,22 @@ finished script will be keyless
 ]]--
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local function secVar(val)
@@ -62,7 +78,7 @@ local win = rf:CreateWindow({
 })
 
 local flinging = secVar(false)
-local power = secVar(500)
+local power = secVar(400)
 local speed = secVar(50)
 local massEnabled = secVar(false)
 local origMass = {}
@@ -76,6 +92,7 @@ local antiFallConn
 local fallDmgConn
 local yLockConn
 local flingAllTpConn
+local antiOtherPlayersConn
 
 local function startAntifall()
     if antiFallConn then
@@ -314,13 +331,55 @@ local function startFling()
     startNoclip()
     createRainbow()
     
+    -- Prevent other players from colliding with us (we can still collide with them)
+    if antiOtherPlayersConn then
+        antiOtherPlayersConn:Disconnect()
+    end
+    
+    antiOtherPlayersConn = game:GetService("RunService").Stepped:Connect(function()
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= plr and otherPlayer.Character then
+                for _, part in pairs(otherPlayer.Character:GetChildren()) do
+                    if part.Name == "HumanoidRootPart" and part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+    
     root.Anchored = true
     
+    -- Set all character parts to massless and non-collidable
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = true
+            part.CanCollide = false
         end
     end
+    
+    -- Stabilize the character before spinning
+    root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, 0, 0)
+    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    
+    -- Create BodyPosition to prevent falling with even stronger force
+    local bodyPos = Instance.new("BodyPosition")
+    bodyPos.Name = "AntiDrop"
+    bodyPos.Parent = root
+    bodyPos.MaxForce = Vector3.new(0, math.huge, 0)
+    bodyPos.Position = root.Position
+    bodyPos.P = 50000
+    bodyPos.D = 2000
+    
+    -- Create BodyGyro to prevent tipping over with stronger force
+    local bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "AntiTip"
+    bodyGyro.Parent = root
+    bodyGyro.MaxTorque = Vector3.new(math.huge, 0, math.huge)
+    bodyGyro.P = 50000
+    bodyGyro.D = 2000
+    bodyGyro.CFrame = CFrame.new(root.Position)
     
     bamVel = Instance.new("BodyAngularVelocity")
     bamVel.Name = "Spinning"
@@ -336,25 +395,54 @@ local function startFling()
     bamAngVel.P = 9e9
     bamAngVel.AngularVelocity = Vector3.new(0, 0, 0)
     
-    -- Create BodyPosition to prevent falling
-    local bodyPos = Instance.new("BodyPosition")
-    bodyPos.Name = "AntiDrop"
-    bodyPos.Parent = root
-    bodyPos.MaxForce = Vector3.new(0, math.huge, 0)
-    bodyPos.Position = root.Position
-    bodyPos.P = 10000
-    bodyPos.D = 500
-    
-    task.wait(0.1)
+    task.wait(0.3)
     root.Anchored = false
     
-    -- Lock Y-axis for 2 seconds to prevent falling, then remove BodyPosition
-    task.delay(2, function()
+    -- Keep stabilizers active for 4 seconds (increased from 3)
+    task.delay(4, function()
         if bodyPos and bodyPos.Parent then
             bodyPos:Destroy()
         end
+        if bodyGyro and bodyGyro.Parent then
+            bodyGyro:Destroy()
+        end
     end)
-    lockYAxis(2)
+    
+    local time = 0
+    local rampTime = 0
+    
+    if flingConn then
+        flingConn:Disconnect()
+    end
+    
+    flingConn = game:GetService("RunService").Heartbeat:Connect(function(delta)
+        if not flinging.val then 
+            if flingConn then
+                flingConn:Disconnect()
+                flingConn = nil
+            end
+            return 
+        end
+        
+        rampTime = math.min(rampTime + delta, 0.5)
+        local rampMult = rampTime / 0.5
+        
+        time = time + (speed.val * 5 * delta)
+        
+        local maxTorque = Vector3.new(math.huge, math.huge, math.huge) * rampMult
+        
+        bamVel.MaxTorque = maxTorque
+        bamAngVel.MaxTorque = maxTorque
+        
+        bamVel.AngularVelocity = Vector3.new(0, time, 0)
+        bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
+        
+        -- Keep torso spinning even in first person by overriding camera subject rotation
+        if plr.CameraMode == Enum.CameraMode.LockFirstPerson then
+            root.CFrame = root.CFrame
+        end
+    end)
+end
     
     local time = 0
     local rampTime = 0
@@ -401,15 +489,20 @@ local function stopFling()
         yLockConn = nil
     end
     
+    if antiOtherPlayersConn then
+        antiOtherPlayersConn:Disconnect()
+        antiOtherPlayersConn = nil
+    end
+    
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = false
         end
     end
     
-    -- Remove AntiDrop BodyPosition if it exists
+    -- Remove AntiDrop BodyPosition and AntiTip BodyGyro if they exist
     for _, obj in pairs(root:GetChildren()) do
-        if obj.Name == "AntiDrop" and obj:IsA("BodyPosition") then
+        if (obj.Name == "AntiDrop" and obj:IsA("BodyPosition")) or (obj.Name == "AntiTip" and obj:IsA("BodyGyro")) then
             obj:Destroy()
         end
     end
@@ -430,6 +523,7 @@ local function stopFling()
     end
     
     root.RotVelocity = Vector3.new(0, 0, 0)
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     root.Anchored = false
     
     stopNoclip()
@@ -483,7 +577,7 @@ local powerSlider = tab1:CreateSlider({
     Name = "Fling Power",
     Range = {100, 2000},
     Increment = 50,
-    CurrentValue = 500,
+    CurrentValue = 400,
     Flag = "PowerSlider",
     Callback = function(val)
         power.val = val
