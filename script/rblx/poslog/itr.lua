@@ -314,9 +314,6 @@ local function startFling()
     startNoclip()
     createRainbow()
     
-    -- Lock Y-axis for 2 seconds to prevent falling
-    lockYAxis(2)
-    
     root.Anchored = true
     
     for _, part in pairs(char:GetDescendants()) do
@@ -339,8 +336,25 @@ local function startFling()
     bamAngVel.P = 9e9
     bamAngVel.AngularVelocity = Vector3.new(0, 0, 0)
     
+    -- Create BodyPosition to prevent falling
+    local bodyPos = Instance.new("BodyPosition")
+    bodyPos.Name = "AntiDrop"
+    bodyPos.Parent = root
+    bodyPos.MaxForce = Vector3.new(0, math.huge, 0)
+    bodyPos.Position = root.Position
+    bodyPos.P = 10000
+    bodyPos.D = 500
+    
     task.wait(0.1)
     root.Anchored = false
+    
+    -- Lock Y-axis for 2 seconds to prevent falling, then remove BodyPosition
+    task.delay(2, function()
+        if bodyPos and bodyPos.Parent then
+            bodyPos:Destroy()
+        end
+    end)
+    lockYAxis(2)
     
     local time = 0
     local rampTime = 0
@@ -390,6 +404,13 @@ local function stopFling()
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = false
+        end
+    end
+    
+    -- Remove AntiDrop BodyPosition if it exists
+    for _, obj in pairs(root:GetChildren()) do
+        if obj.Name == "AntiDrop" and obj:IsA("BodyPosition") then
+            obj:Destroy()
         end
     end
     
