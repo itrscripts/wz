@@ -330,7 +330,6 @@ local function startFling()
     startNoclip()
     createRainbow()
     
-    -- Prevent other players from colliding with us (we can still collide with them)
     if antiOtherPlayersConn then
         antiOtherPlayersConn:Disconnect()
     end
@@ -349,7 +348,6 @@ local function startFling()
     
     root.Anchored = true
     
-    -- Set all character parts to massless and non-collidable
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = true
@@ -357,12 +355,10 @@ local function startFling()
         end
     end
     
-    -- Stabilize the character before spinning
     root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, 0, 0)
     root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     
-    -- Create BodyPosition to prevent falling with even stronger force
     local bodyPos = Instance.new("BodyPosition")
     bodyPos.Name = "AntiDrop"
     bodyPos.Parent = root
@@ -371,7 +367,6 @@ local function startFling()
     bodyPos.P = 50000
     bodyPos.D = 2000
     
-    -- Create BodyGyro to prevent tipping over with stronger force
     local bodyGyro = Instance.new("BodyGyro")
     bodyGyro.Name = "AntiTip"
     bodyGyro.Parent = root
@@ -397,7 +392,6 @@ local function startFling()
     task.wait(0.3)
     root.Anchored = false
     
-    -- Keep stabilizers active for 4 seconds (increased from 3)
     task.delay(4, function()
         if bodyPos and bodyPos.Parent then
             bodyPos:Destroy()
@@ -436,41 +430,9 @@ local function startFling()
         bamVel.AngularVelocity = Vector3.new(0, time, 0)
         bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
         
-        -- Keep torso spinning even in first person by overriding camera subject rotation
         if plr.CameraMode == Enum.CameraMode.LockFirstPerson then
             root.CFrame = root.CFrame
         end
-    end)
-end
-    
-    local time = 0
-    local rampTime = 0
-    
-    if flingConn then
-        flingConn:Disconnect()
-    end
-    
-    flingConn = game:GetService("RunService").Heartbeat:Connect(function(delta)
-        if not flinging.val then 
-            if flingConn then
-                flingConn:Disconnect()
-                flingConn = nil
-            end
-            return 
-        end
-        
-        rampTime = math.min(rampTime + delta, 0.5)
-        local rampMult = rampTime / 0.5
-        
-        time = time + (speed.val * 5 * delta)
-        
-        local maxTorque = Vector3.new(math.huge, math.huge, math.huge) * rampMult
-        
-        bamVel.MaxTorque = maxTorque
-        bamAngVel.MaxTorque = maxTorque
-        
-        bamVel.AngularVelocity = Vector3.new(0, time, 0)
-        bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
     end)
 end
 
@@ -499,7 +461,6 @@ local function stopFling()
         end
     end
     
-    -- Remove AntiDrop BodyPosition and AntiTip BodyGyro if they exist
     for _, obj in pairs(root:GetChildren()) do
         if (obj.Name == "AntiDrop" and obj:IsA("BodyPosition")) or (obj.Name == "AntiTip" and obj:IsA("BodyGyro")) then
             obj:Destroy()
@@ -705,7 +666,6 @@ tab3:CreateButton({
         local flinged = {}
         local currentTarget = nil
         
-        -- Start continuous teleport connection
         if flingAllTpConn then
             flingAllTpConn:Disconnect()
         end
@@ -717,7 +677,6 @@ tab3:CreateButton({
             
             if currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
                 local targetRoot = currentTarget.Character.HumanoidRootPart
-                -- Continuously teleport inside target's torso
                 root.CFrame = targetRoot.CFrame
             end
         end)
@@ -739,12 +698,10 @@ tab3:CreateButton({
                         Image = 4483362458
                     })
                     
-                    -- Wait 1 second while continuously teleporting inside target
                     task.wait(1)
                 end
             end
             
-            -- Finished flinging all players
             currentTarget = nil
             
             if flingAllTpConn then
@@ -822,14 +779,17 @@ tab2:CreateButton({
         if noclipConn then
             noclipConn:Disconnect()
         end
+        if yLockConn then
+            yLockConn:Disconnect()
+        end
+        if antiOtherPlayersConn then
+            antiOtherPlayersConn:Disconnect()
+        end
         if rainbowConn then
             rainbowConn:Disconnect()
         end
         if flingConn then
             flingConn:Disconnect()
-        end
-        if yLockConn then
-            yLockConn:Disconnect()
         end
         if flingAllTpConn then
             flingAllTpConn:Disconnect()
