@@ -86,6 +86,7 @@ local noClip = secVar(false)
 local flingAll = secVar(false)
 local rainbow = nil
 local _authToken = "69747273637269707473"
+local partsDeleted = false
 
 local antiFallConn
 local fallDmgConn
@@ -327,7 +328,9 @@ local function startFling()
     if flinging.val then return end
     flinging.val = true
     
-    hideParts()
+    if not partsDeleted then
+        hideParts()
+    end
     startNoclip()
     createRainbow()
     
@@ -347,6 +350,7 @@ local function startFling()
         end
     end)
     
+    -- Anchor root temporarily
     root.Anchored = true
     
     -- Make all body parts massless and disable collision
@@ -410,28 +414,29 @@ local function startFling()
         flingConn:Disconnect()
     end
     
-    -- Keep body parts positioned underground relative to the root part
-    if bodyPartUpdateConn then
-        bodyPartUpdateConn:Disconnect()
-    end
-    
-    bodyPartUpdateConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not flinging.val or not root or not root.Parent then 
-            if bodyPartUpdateConn then
-                bodyPartUpdateConn:Disconnect()
-                bodyPartUpdateConn = nil
-            end
-            return 
+    -- Only run body part update if parts aren't deleted
+    if not partsDeleted then
+        if bodyPartUpdateConn then
+            bodyPartUpdateConn:Disconnect()
         end
         
-        -- Position all body parts 10 studs below the root part
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                -- Keep parts 10 studs directly below the torso
-                part.CFrame = CFrame.new(root.Position.X, root.Position.Y - 10, root.Position.Z)
+        bodyPartUpdateConn = game:GetService("RunService").Heartbeat:Connect(function()
+            if not flinging.val or not root or not root.Parent or partsDeleted then 
+                if bodyPartUpdateConn then
+                    bodyPartUpdateConn:Disconnect()
+                    bodyPartUpdateConn = nil
+                end
+                return 
             end
-        end
-    end)
+            
+            -- Position all body parts 100 studs below the root part
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CFrame = CFrame.new(root.Position.X, root.Position.Y - 100, root.Position.Z)
+                end
+            end
+        end)
+    end
     
     flingConn = game:GetService("RunService").Heartbeat:Connect(function(delta)
         if not flinging.val then 
@@ -517,7 +522,9 @@ local function stopFling()
     root.Anchored = false
     
     stopNoclip()
-    showParts()
+    if not partsDeleted then
+        showParts()
+    end
     removeRainbow()
 end
 
@@ -553,6 +560,7 @@ hum.Died:Connect(function()
         char = plr.Character
         hum = char:WaitForChild("Humanoid")
         root = char:WaitForChild("HumanoidRootPart")
+        partsDeleted = false
         
         startAntifall()
         
@@ -585,7 +593,7 @@ local speedSlider = tab1:CreateSlider({
     end
 })
 
-local sec2 = tab1:CreateSection("Debug")
+local sec2 = tab1:CreateSection("Advanced")
 
 local massToggle = tab1:CreateToggle({
     Name = "Body Mass/Density",
@@ -647,6 +655,91 @@ local antiFlingToggle = tab1:CreateToggle({
             end
         end
     end
+})
+
+-- Debug Tab
+local tab4 = win:CreateTab("Debug", 4483362458)
+
+local sec5 = tab4:CreateSection("Body Part Controls")
+
+tab4:CreateButton({
+    Name = "Delete Body Parts",
+    Callback = function()
+        if partsDeleted then
+            rf:Notify({
+                Title = "Already Deleted",
+                Content = "Body parts are already deleted!",
+                Duration = 2,
+                Image = 4483362458
+            })
+            return
+        end
+        
+        -- Stop body part update loop
+        if bodyPartUpdateConn then
+            bodyPartUpdateConn:Disconnect()
+            bodyPartUpdateConn = nil
+        end
+        
+        -- Delete all body parts except HumanoidRootPart
+        local deletedCount = 0
+        for _, part in pairs(char:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part:Destroy()
+                deletedCount = deletedCount + 1
+            elseif part:IsA("Accessory") then
+                part:Destroy()
+                deletedCount = deletedCount + 1
+            end
+        end
+        
+        -- Also delete any leftover parts from character descendants
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Parent == char then
+                part:Destroy()
+                deletedCount = deletedCount + 1
+            end
+        end
+        
+        partsDeleted = true
+        
+        rf:Notify({
+            Title = "Parts Deleted",
+            Content = "Deleted " .. deletedCount .. " body parts! Only torso remains.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
+})
+
+tab4:CreateButton({
+    Name = "Restore Body Parts",
+    Callback = function()
+        if not partsDeleted then
+            rf:Notify({
+                Title = "Not Deleted",
+                Content = "Body parts haven't been deleted!",
+                Duration = 2,
+                Image = 4483362458
+            })
+            return
+        end
+        
+        rf:Notify({
+            Title = "Restoring...",
+            Content = "Resetting character to restore body parts.",
+            Duration = 2,
+            Image = 4483362458
+        })
+        
+        task.wait(1)
+        hum.Health = 0
+    end
+})
+
+tab4:CreateParagraph({
+    Title = "Delete Body Parts Info",
+    Content = "This permanently deletes your arms, legs, head, and accessories - leaving only your torso visible. Others will only see your spinning torso! Use 'Restore Body Parts' or reset to get them back."
 })
 
 local tab3 = win:CreateTab("Rage", 4483362458)
@@ -780,14 +873,32 @@ tab2:CreateButton({
 tab2:CreateButton({
     Name = "Show Body Parts",
     Callback = function()
-        showParts()
+        if partsDeleted then
+            rf:Notify({
+                Title = "Parts Deleted",
+                Content = "Body parts have been deleted! Reset to restore them.",
+                Duration = 2,
+                Image = 4483362458
+            })
+        else
+            showParts()
+        end
     end
 })
 
 tab2:CreateButton({
     Name = "Hide Body Parts",
     Callback = function()
-        hideParts()
+        if partsDeleted then
+            rf:Notify({
+                Title = "Parts Deleted",
+                Content = "Body parts are already deleted!",
+                Duration = 2,
+                Image = 4483362458
+            })
+        else
+            hideParts()
+        end
     end
 })
 
@@ -796,7 +907,9 @@ tab2:CreateButton({
     Callback = function()
         stopFling()
         setMass(false)
-        showParts()
+        if not partsDeleted then
+            showParts()
+        end
         if antiConn then
             antiConn:Disconnect()
         end
@@ -875,6 +988,7 @@ plr.CharacterAdded:Connect(function(newChar)
     origMass = {}
     antiFling.val = false
     noClip.val = false
+    partsDeleted = false
     
     startAntifall()
     
