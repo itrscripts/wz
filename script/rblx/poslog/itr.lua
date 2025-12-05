@@ -16,7 +16,6 @@ local win = rf:CreateWindow({
 local logs = {}
 local max = 100
 
-local tcs = game:GetService("TextChatService")
 local plrs = game:GetService("Players")
 local lp = plrs.LocalPlayer
 
@@ -34,6 +33,10 @@ local status = tab1:CreateLabel("Status: Active - Monitoring chat...")
 local logsec = tab1:CreateSection("Recent Messages")
 
 local function addlog(pname, msg, full)
+    if string.find(msg, "#") then
+        return
+    end
+    
     table.insert(logs, 1, {
         player = pname,
         message = msg,
@@ -56,7 +59,7 @@ local function addlog(pname, msg, full)
             setclipboard(msg)
             rf:Notify({
                 Title = "Copied!",
-                Content = "Message copied to clipboard from " .. pname,
+                Content = "Message copied from " .. pname,
                 Duration = 2,
                 Image = 4483362458
             })
@@ -64,121 +67,31 @@ local function addlog(pname, msg, full)
     })
 end
 
-local function newchat()
-    local ok, err = pcall(function()
-        if tcs.ChatVersion == Enum.ChatVersion.TextChatService then
-            for _, ch in pairs(tcs:GetChildren()) do
-                if ch:IsA("TextChannel") then
-                    ch.MessageReceived:Connect(function(m)
-                        local pn = "Unknown"
-                        local mt = m.Text
-                        
-                        if m.TextSource then
-                            pn = m.TextSource.Name
-                        end
-                        
-                        local ft = string.format("[%s] %s: %s", 
-                            os.date("%H:%M:%S"), 
-                            pn, 
-                            mt
-                        )
-                        
-                        addlog(pn, mt, ft)
-                    end)
-                end
-            end
-            
-            tcs.ChildAdded:Connect(function(c)
-                if c:IsA("TextChannel") then
-                    c.MessageReceived:Connect(function(m)
-                        local pn = "Unknown"
-                        local mt = m.Text
-                        
-                        if m.TextSource then
-                            pn = m.TextSource.Name
-                        end
-                        
-                        local ft = string.format("[%s] %s: %s", 
-                            os.date("%H:%M:%S"), 
-                            pn, 
-                            mt
-                        )
-                        
-                        addlog(pn, mt, ft)
-                    end)
-                end
-            end)
-            
-            return true
-        end
-        return false
-    end)
-    
-    return ok and not err
-end
-
-local function oldchat()
-    local ok, err = pcall(function()
-        local rs = game:GetService("ReplicatedStorage")
-        local ce = rs:WaitForChild("DefaultChatSystemChatEvents", 5)
-        
-        if ce then
-            local omdf = ce:WaitForChild("OnMessageDoneFiltering", 5)
-            
-            if omdf then
-                omdf.OnClientEvent:Connect(function(md)
-                    if md then
-                        local pn = md.FromSpeaker or "Unknown"
-                        local m = md.Message or ""
-                        
-                        local ft = string.format("[%s] %s: %s", 
-                            os.date("%H:%M:%S"), 
-                            pn, 
-                            m
-                        )
-                        
-                        addlog(pn, m, ft)
-                    end
-                end)
-                return true
-            end
-        end
-        return false
-    end)
-    
-    return ok and not err
-end
-
-local setup = false
-
-if newchat() then
-    setup = true
-    print("Chat Logger: Using TextChatService")
-elseif oldchat() then
-    setup = true
-    print("Chat Logger: Using Legacy Chat")
-else
-    task.wait(2)
-    if newchat() then
-        setup = true
-        print("Chat Logger: Using TextChatService (delayed)")
-    else
-        task.wait(2)
-        if oldchat() then
-            setup = true
-            print("Chat Logger: Using Legacy Chat (delayed)")
-        end
+for i, v in pairs(plrs:GetChildren()) do
+    if v:IsA("Player") then
+        v.Chatted:Connect(function(msg)
+            local ft = string.format("[%s] %s: %s", 
+                os.date("%H:%M:%S"), 
+                v.Name, 
+                msg
+            )
+            addlog(v.Name, msg, ft)
+        end)
     end
 end
 
-if not setup then
-    rf:Notify({
-        Title = "Warning",
-        Content = "Could not detect chat system. Some messages may not be logged.",
-        Duration = 5,
-        Image = 4483362458
-    })
-end
+plrs.ChildAdded:Connect(function(plr)
+    if plr:IsA("Player") then
+        plr.Chatted:Connect(function(msg)
+            local ft = string.format("[%s] %s: %s", 
+                os.date("%H:%M:%S"), 
+                plr.Name, 
+                msg
+            )
+            addlog(plr.Name, msg, ft)
+        end)
+    end
+end)
 
 local tab2 = win:CreateTab("Settings", 4483362458)
 
@@ -236,4 +149,4 @@ rf:Notify({
     Image = 4483362458
 })
 
-print("Possessor Chat Logger loaded successfully!")
+print("Chat Logger loaded successfully!")
