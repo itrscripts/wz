@@ -28,7 +28,6 @@ finished script will be keyless
 
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Security: Protect variables from console access
 local protect = setmetatable({}, {
     __index = function(_, k)
         error("Access denied", 2)
