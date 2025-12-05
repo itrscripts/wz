@@ -1,8 +1,31 @@
+--[[ this script is nt finished yet so that means it likely wont work,
+finished script will be keyless
+
+ ___      _________    ________           ___       __       _________    ________ 
+|\  \    |\___   ___\ |\   __  \         |\  \     |\  \    |\___   ___\ |\  _____\
+\ \  \   \|___ \  \_| \ \  \|\  \        \ \  \    \ \  \   \|___ \  \_| \ \  \__/ 
+ \ \  \       \ \  \   \ \   _  _\        \ \  \  __\ \  \       \ \  \   \ \   __\
+  \ \  \       \ \  \   \ \  \\  \|  ___   \ \  \|\__\_\  \       \ \  \   \ \  \_|
+   \ \__\       \ \__\   \ \__\\ _\ |\__\   \ \____________\       \ \__\   \ \__\ 
+    \|__|        \|__|    \|__|\|__|\|__|    \|____________|        \|__|    \|__| 
+
+
+
+
+
+
+
+
+
+
+
+
+]]--
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local win = rf:CreateWindow({
-    Name = "Possessor Chat Logger",
-    LoadingTitle = "Chat Logger",
+    Name = "Torso Fling",
+    LoadingTitle = "Fling Script",
     LoadingSubtitle = "by Script",
     ConfigurationSaving = {
         Enabled = false
@@ -13,140 +36,245 @@ local win = rf:CreateWindow({
     KeySystem = false
 })
 
-local logs = {}
-local max = 100
+local plr = game.Players.LocalPlayer
+local char = plr.Character or plr.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
+local torso = char:WaitForChild("HumanoidRootPart")
 
-local plrs = game:GetService("Players")
-local lp = plrs.LocalPlayer
+local flinging = false
+local power = 500
+local speed = 50
+local massEnabled = false
+local originalMass = {}
 
-local tab1 = win:CreateTab("Chat Logger", 4483362458)
+local tab1 = win:CreateTab("Fling", 4483362458)
 
-local sec1 = tab1:CreateSection("Chat Monitor")
+local sec1 = tab1:CreateSection("Controls")
 
-local info = tab1:CreateParagraph({
-    Title = "How to Use",
-    Content = "All chat messages will be logged below. Click on any message button to copy it to your clipboard. Useful for finding codes people type in different languages!"
+local function hideparts()
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = 1
+            if part:IsA("MeshPart") then
+                part.TextureID = ""
+            end
+        elseif part:IsA("Decal") or part:IsA("Texture") then
+            part.Transparency = 1
+        elseif part:IsA("Accessory") then
+            local handle = part:FindFirstChild("Handle")
+            if handle then
+                handle.Transparency = 1
+            end
+        end
+    end
+end
+
+local function showparts()
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = 0
+            if part.Name == "Head" then
+                part.Transparency = 0
+            end
+        elseif part:IsA("Decal") or part:IsA("Texture") then
+            part.Transparency = 0
+        elseif part:IsA("Accessory") then
+            local handle = part:FindFirstChild("Handle")
+            if handle then
+                handle.Transparency = 0
+            end
+        end
+    end
+end
+
+local function setmass(enabled)
+    if enabled then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if not originalMass[part] then
+                    originalMass[part] = part:GetMass()
+                end
+                
+                local props = part.CustomPhysicalProperties or PhysicalProperties.new(part.Material)
+                local newProps = PhysicalProperties.new(
+                    9e9,
+                    props.Friction,
+                    props.Elasticity,
+                    props.FrictionWeight,
+                    props.ElasticityWeight
+                )
+                part.CustomPhysicalProperties = newProps
+            end
+        end
+    else
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CustomPhysicalProperties = nil
+            end
+        end
+        originalMass = {}
+    end
+end
+
+local bv
+local bg
+
+local function startfling()
+    if flinging then return end
+    flinging = true
+    
+    hideparts()
+    
+    bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(0, 0, 0)
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.Parent = torso
+    
+    bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.P = 9e9
+    bg.D = 500
+    bg.Parent = torso
+    
+    local t = 0
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if not flinging then return end
+        
+        t = t + speed / 100
+        
+        local rx = math.sin(t * 3) * math.pi * 2
+        local ry = math.cos(t * 2) * math.pi * 2
+        local rz = math.sin(t * 4) * math.pi * 2
+        
+        bg.CFrame = CFrame.Angles(rx, ry, rz)
+        
+        torso.Velocity = Vector3.new(
+            math.sin(t) * power,
+            math.cos(t * 2) * power,
+            math.cos(t) * power
+        )
+    end)
+end
+
+local function stopfling()
+    if not flinging then return end
+    flinging = false
+    
+    if bv then
+        bv:Destroy()
+        bv = nil
+    end
+    
+    if bg then
+        bg:Destroy()
+        bg = nil
+    end
+    
+    torso.Velocity = Vector3.new(0, 0, 0)
+    torso.RotVelocity = Vector3.new(0, 0, 0)
+    
+    showparts()
+end
+
+local flingToggle = tab1:CreateToggle({
+    Name = "Enable Fling",
+    CurrentValue = false,
+    Flag = "FlingToggle",
+    Callback = function(val)
+        if val then
+            startfling()
+        else
+            stopfling()
+        end
+    end
 })
 
-local status = tab1:CreateLabel("Status: Active - Monitoring chat...")
+local powerSlider = tab1:CreateSlider({
+    Name = "Fling Power",
+    Range = {100, 2000},
+    Increment = 50,
+    CurrentValue = 500,
+    Flag = "PowerSlider",
+    Callback = function(val)
+        power = val
+    end
+})
 
-local logsec = tab1:CreateSection("Recent Messages")
+local speedSlider = tab1:CreateSlider({
+    Name = "Rotation Speed",
+    Range = {10, 200},
+    Increment = 10,
+    CurrentValue = 50,
+    Flag = "SpeedSlider",
+    Callback = function(val)
+        speed = val
+    end
+})
 
-local function addlog(pname, msg, full)
-    if string.find(msg, "#") then
-        return
-    end
-    
-    table.insert(logs, 1, {
-        player = pname,
-        message = msg,
-        full = full,
-        time = os.date("%H:%M:%S")
-    })
-    
-    if #logs > max then
-        table.remove(logs, #logs)
-    end
-    
-    local txt = string.sub(full, 1, 50)
-    if #full > 50 then
-        txt = txt .. "..."
-    end
-    
-    tab1:CreateButton({
-        Name = txt,
-        Callback = function()
-            setclipboard(msg)
-            rf:Notify({
-                Title = "Copied!",
-                Content = "Message copied from " .. pname,
-                Duration = 2,
-                Image = 4483362458
-            })
-        end
-    })
-end
+local sec2 = tab1:CreateSection("Debug")
 
-for i, v in pairs(plrs:GetChildren()) do
-    if v:IsA("Player") then
-        v.Chatted:Connect(function(msg)
-            local ft = string.format("[%s] %s: %s", 
-                os.date("%H:%M:%S"), 
-                v.Name, 
-                msg
-            )
-            addlog(v.Name, msg, ft)
-        end)
+local massToggle = tab1:CreateToggle({
+    Name = "Body Mass/Density",
+    CurrentValue = false,
+    Flag = "MassToggle",
+    Callback = function(val)
+        massEnabled = val
+        setmass(val)
     end
-end
+})
 
-plrs.ChildAdded:Connect(function(plr)
-    if plr:IsA("Player") then
-        plr.Chatted:Connect(function(msg)
-            local ft = string.format("[%s] %s: %s", 
-                os.date("%H:%M:%S"), 
-                plr.Name, 
-                msg
-            )
-            addlog(plr.Name, msg, ft)
-        end)
-    end
-end)
+tab1:CreateParagraph({
+    Title = "Info",
+    Content = "Body Mass makes your character extremely heavy so you can push and fling things easier. Enable it for better fling results!"
+})
 
 local tab2 = win:CreateTab("Settings", 4483362458)
 
-local sec2 = tab2:CreateSection("Options")
+local sec3 = tab2:CreateSection("Options")
 
 tab2:CreateButton({
-    Name = "Clear All Logs",
+    Name = "Reset Character",
     Callback = function()
-        logs = {}
-        rf:Notify({
-            Title = "Cleared",
-            Content = "All chat logs have been cleared.",
-            Duration = 2,
-            Image = 4483362458
-        })
+        stopfling()
+        setmass(false)
+        humanoid.Health = 0
     end
 })
 
 tab2:CreateButton({
-    Name = "Copy All Logs",
+    Name = "Show Body Parts",
     Callback = function()
-        local all = ""
-        for i, l in ipairs(logs) do
-            all = all .. l.full .. "\n"
-        end
-        
-        if all ~= "" then
-            setclipboard(all)
-            rf:Notify({
-                Title = "Exported",
-                Content = "All logs copied to clipboard!",
-                Duration = 2,
-                Image = 4483362458
-            })
-        else
-            rf:Notify({
-                Title = "Empty",
-                Content = "No logs to export.",
-                Duration = 2,
-                Image = 4483362458
-            })
-        end
+        showparts()
+    end
+})
+
+tab2:CreateButton({
+    Name = "Hide Body Parts",
+    Callback = function()
+        hideparts()
     end
 })
 
 tab2:CreateParagraph({
     Title = "About",
-    Content = "This chat logger helps you find codes and messages in different languages. Perfect for Possessor game where people try to hide their communication!"
+    Content = "Torso rotate fling script. Your torso spins rapidly in all directions while your body parts are invisible. Use Body Mass for extra power!"
 })
 
 rf:Notify({
-    Title = "Chat Logger Active",
-    Content = "Now monitoring all chat messages. Click any message to copy!",
+    Title = "Torso Fling Loaded",
+    Content = "Toggle fling to start spinning!",
     Duration = 3,
     Image = 4483362458
 })
 
-print("Chat Logger loaded successfully!")
+plr.CharacterAdded:Connect(function(newchar)
+    char = newchar
+    humanoid = char:WaitForChild("Humanoid")
+    torso = char:WaitForChild("HumanoidRootPart")
+    flinging = false
+    massEnabled = false
+    originalMass = {}
+    
+    if bv then bv:Destroy() end
+    if bg then bg:Destroy() end
+end)
