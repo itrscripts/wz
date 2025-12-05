@@ -20,13 +20,17 @@ finished script will be keyless
 
 
 
+
+
+
 ]]--
+
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local win = rf:CreateWindow({
     Name = "Torso Fling",
     LoadingTitle = "Fling Script",
-    LoadingSubtitle = "by Script",
+    LoadingSubtitle = "by itrscripts",
     ConfigurationSaving = {
         Enabled = false
     },
@@ -46,6 +50,7 @@ local power = 500
 local speed = 50
 local massEnabled = false
 local originalMass = {}
+local antifling = false
 
 local tab1 = win:CreateTab("Fling", 4483362458)
 
@@ -116,8 +121,10 @@ local function setmass(enabled)
     end
 end
 
-local bv
 local bg
+local bamV
+local bamAV
+local antiflingConnection
 
 local function startfling()
     if flinging then return end
@@ -125,34 +132,28 @@ local function startfling()
     
     hideparts()
     
-    bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(0, 0, 0)
-    bv.Velocity = Vector3.new(0, 0, 0)
-    bv.Parent = torso
+    torso.CFrame = torso.CFrame
     
-    bg = Instance.new("BodyGyro")
-    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bg.P = 9e9
-    bg.D = 500
-    bg.Parent = torso
+    bamV = Instance.new("BodyAngularVelocity")
+    bamV.Name = "Spinning"
+    bamV.Parent = torso
+    bamV.MaxTorque = Vector3.new(0, math.huge, 0)
+    bamV.P = 1000000
+    
+    bamAV = Instance.new("BodyAngularVelocity")
+    bamAV.Name = "Spinningtoo"
+    bamAV.Parent = torso
+    bamAV.MaxTorque = Vector3.new(math.huge, 0, math.huge)
+    bamAV.P = 1000000
     
     local t = 0
     game:GetService("RunService").Heartbeat:Connect(function()
         if not flinging then return end
         
-        t = t + speed / 100
+        t = t + (speed / 10)
         
-        local rx = math.sin(t * 3) * math.pi * 2
-        local ry = math.cos(t * 2) * math.pi * 2
-        local rz = math.sin(t * 4) * math.pi * 2
-        
-        bg.CFrame = CFrame.Angles(rx, ry, rz)
-        
-        torso.Velocity = Vector3.new(
-            math.sin(t) * power,
-            math.cos(t * 2) * power,
-            math.cos(t) * power
-        )
+        bamV.AngularVelocity = Vector3.new(0, t, 0)
+        bamAV.AngularVelocity = Vector3.new(t, 0, t)
     end)
 end
 
@@ -160,17 +161,16 @@ local function stopfling()
     if not flinging then return end
     flinging = false
     
-    if bv then
-        bv:Destroy()
-        bv = nil
+    if bamV then
+        bamV:Destroy()
+        bamV = nil
     end
     
-    if bg then
-        bg:Destroy()
-        bg = nil
+    if bamAV then
+        bamAV:Destroy()
+        bamAV = nil
     end
     
-    torso.Velocity = Vector3.new(0, 0, 0)
     torso.RotVelocity = Vector3.new(0, 0, 0)
     
     showparts()
@@ -228,6 +228,30 @@ tab1:CreateParagraph({
     Content = "Body Mass makes your character extremely heavy so you can push and fling things easier. Enable it for better fling results!"
 })
 
+local antiflingToggle = tab1:CreateToggle({
+    Name = "Anti-Fling",
+    CurrentValue = false,
+    Flag = "AntiFlingToggle",
+    Callback = function(val)
+        antifling = val
+        if val then
+            if antiflingConnection then
+                antiflingConnection:Disconnect()
+            end
+            antiflingConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if torso then
+                    torso.Velocity = Vector3.new(0, 0, 0)
+                end
+            end)
+        else
+            if antiflingConnection then
+                antiflingConnection:Disconnect()
+                antiflingConnection = nil
+            end
+        end
+    end
+})
+
 local tab2 = win:CreateTab("Settings", 4483362458)
 
 local sec3 = tab2:CreateSection("Options")
@@ -255,9 +279,28 @@ tab2:CreateButton({
     end
 })
 
+tab2:CreateButton({
+    Name = "Unload Script",
+    Callback = function()
+        stopfling()
+        setmass(false)
+        showparts()
+        if antiflingConnection then
+            antiflingConnection:Disconnect()
+        end
+        win:Destroy()
+        rf:Notify({
+            Title = "Unloaded",
+            Content = "Script has been unloaded.",
+            Duration = 2,
+            Image = 4483362458
+        })
+    end
+})
+
 tab2:CreateParagraph({
     Title = "About",
-    Content = "Torso rotate fling script. Your torso spins rapidly in all directions while your body parts are invisible. Use Body Mass for extra power!"
+    Content = "Torso rotate fling script by itrscripts. Your torso spins rapidly in all directions while your body parts are invisible. Use Body Mass for extra power!"
 })
 
 rf:Notify({
@@ -274,7 +317,9 @@ plr.CharacterAdded:Connect(function(newchar)
     flinging = false
     massEnabled = false
     originalMass = {}
+    antifling = false
     
-    if bv then bv:Destroy() end
-    if bg then bg:Destroy() end
+    if bamV then bamV:Destroy() end
+    if bamAV then bamAV:Destroy() end
+    if antiflingConnection then antiflingConnection:Disconnect() end
 end)
