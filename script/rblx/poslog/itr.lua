@@ -78,7 +78,7 @@ local win = rf:CreateWindow({
 
 local flinging = secVar(false)
 local power = secVar(400)
-local speed = secVar(50)
+local speed = secVar(500)
 local massEnabled = secVar(false)
 local origMass = {}
 local antiFling = secVar(false)
@@ -86,12 +86,14 @@ local noClip = secVar(false)
 local flingAll = secVar(false)
 local rainbow = nil
 local name_git = "69747273637269707473"
+local visibleSpin = secVar(false)
 
 local antiFallConn
 local fallDmgConn
 local yLockConn
 local flingAllTpConn
 local antiOtherPlayersConn
+local visibleSpinConn
 
 local function startAntifall()
     if antiFallConn then
@@ -379,6 +381,18 @@ local function stopFling()
     if not flinging.val then return end
     flinging.val = false
     
+    if visibleSpin.val then
+        visibleSpin.val = false
+        if visibleSpinToggle then
+            visibleSpinToggle:Set(false)
+        end
+    end
+    
+    if visibleSpinConn then
+        visibleSpinConn:Disconnect()
+        visibleSpinConn = nil
+    end
+    
     if flingConn then
         flingConn:Disconnect()
         flingConn = nil
@@ -432,6 +446,65 @@ local flingToggle = tab1:CreateToggle({
     end
 })
 
+local visibleSpinToggle = tab1:CreateToggle({
+    Name = "Visible Spin (Others See)",
+    CurrentValue = false,
+    Flag = "VisibleSpinToggle",
+    Callback = function(val)
+        if val then
+            if not flinging.val then
+                rf:Notify({
+                    Title = "Fling Disabled",
+                    Content = "Enable fling first to use visible spin!",
+                    Duration = 2,
+                    Image = 4483362458
+                })
+                visibleSpinToggle:Set(false)
+                return
+            end
+            
+            visibleSpin.val = true
+            
+            if visibleSpinConn then
+                visibleSpinConn:Disconnect()
+            end
+            
+            visibleSpinConn = game:GetService("RunService").Heartbeat:Connect(function()
+                if not visibleSpin.val or not flinging.val or not root or not root.Parent then
+                    if visibleSpinConn then
+                        visibleSpinConn:Disconnect()
+                        visibleSpinConn = nil
+                    end
+                    return
+                end
+                
+                root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(speed.val * 2), 0)
+            end)
+            
+            rf:Notify({
+                Title = "Visible Spin ON",
+                Content = "Others can now see you spinning!",
+                Duration = 2,
+                Image = 4483362458
+            })
+        else
+            visibleSpin.val = false
+            
+            if visibleSpinConn then
+                visibleSpinConn:Disconnect()
+                visibleSpinConn = nil
+            end
+            
+            rf:Notify({
+                Title = "Visible Spin OFF",
+                Content = "Spin is now invisible to others.",
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end
+})
+
 local secLoader = loadstring(game:HttpGet("https://raw.githubusercontent.com/itrscripts/wz/refs/heads/main/script/rblx/poslog/sk/protect.lua",true))
 if secLoader then 
     local secEnv = getfenv(secLoader)
@@ -474,9 +547,9 @@ local powerSlider = tab1:CreateSlider({
 
 local speedSlider = tab1:CreateSlider({
     Name = "Rotation Speed",
-    Range = {10, 200},
+    Range = {100, 1000},
     Increment = 10,
-    CurrentValue = 50,
+    CurrentValue = 500,
     Flag = "SpeedSlider",
     Callback = function(val)
         speed.val = val
@@ -722,6 +795,9 @@ tab2:CreateButton({
         if flingAllTpConn then
             flingAllTpConn:Disconnect()
         end
+        if visibleSpinConn then
+            visibleSpinConn:Disconnect()
+        end
         
         for _, obj in pairs(root:GetChildren()) do
             if obj.Name == "AntiFlingGyro" then
@@ -770,6 +846,7 @@ plr.CharacterAdded:Connect(function(newChar)
     origMass = {}
     antiFling.val = false
     noClip.val = false
+    visibleSpin.val = false
     
     startAntifall()
     
@@ -781,4 +858,5 @@ plr.CharacterAdded:Connect(function(newChar)
     if flingConn then flingConn:Disconnect() end
     if yLockConn then yLockConn:Disconnect() end
     if flingAllTpConn then flingAllTpConn:Disconnect() end
+    if visibleSpinConn then visibleSpinConn:Disconnect() end
 end)
