@@ -146,28 +146,12 @@ local function hideParts()
             if part:IsA("MeshPart") then
                 part.TextureID = ""
             end
-            
-            local offset = Instance.new("BodyPosition")
-            offset.Name = "HideOffset"
-            offset.MaxForce = Vector3.new(0, math.huge, 0)
-            offset.Position = part.Position + Vector3.new(0, -200, 0)
-            offset.P = 50000
-            offset.D = 1000
-            offset.Parent = part
         elseif part:IsA("Decal") or part:IsA("Texture") then
             part.Transparency = 1
         elseif part:IsA("Accessory") then
             local handle = part:FindFirstChild("Handle")
             if handle then
                 handle.Transparency = 1
-                
-                local offset = Instance.new("BodyPosition")
-                offset.Name = "HideOffset"
-                offset.MaxForce = Vector3.new(0, math.huge, 0)
-                offset.Position = handle.Position + Vector3.new(0, -200, 0)
-                offset.P = 50000
-                offset.D = 1000
-                offset.Parent = handle
             end
         end
     end
@@ -180,12 +164,6 @@ end
 local function showParts()
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-            for _, obj in pairs(part:GetChildren()) do
-                if obj.Name == "HideOffset" and obj:IsA("BodyPosition") then
-                    obj:Destroy()
-                end
-            end
-            
             part.Transparency = 0
             if part.Name == "Head" then
                 part.Transparency = 0
@@ -195,12 +173,6 @@ local function showParts()
         elseif part:IsA("Accessory") then
             local handle = part:FindFirstChild("Handle")
             if handle then
-                for _, obj in pairs(handle:GetChildren()) do
-                    if obj.Name == "HideOffset" and obj:IsA("BodyPosition") then
-                        obj:Destroy()
-                    end
-                end
-                
                 handle.Transparency = 0
             end
         end
@@ -380,6 +352,10 @@ local function startFling()
         if part:IsA("BasePart") then
             part.Massless = true
             part.CanCollide = false
+            
+            if part.Name ~= "HumanoidRootPart" then
+                part.CFrame = CFrame.new(0, -500, 0)
+            end
         end
     end
     
@@ -458,6 +434,12 @@ local function startFling()
         bamVel.AngularVelocity = Vector3.new(0, time, 0)
         bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
         
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.CFrame = CFrame.new(0, -500, 0)
+            end
+        end
+        
         if plr.CameraMode == Enum.CameraMode.LockFirstPerson then
             root.CFrame = root.CFrame
         end
@@ -486,12 +468,6 @@ local function stopFling()
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = false
-            
-            for _, obj in pairs(part:GetChildren()) do
-                if obj.Name == "HideOffset" and obj:IsA("BodyPosition") then
-                    obj:Destroy()
-                end
-            end
         end
     end
     
