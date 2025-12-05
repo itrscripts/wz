@@ -92,6 +92,7 @@ local fallDmgConn
 local yLockConn
 local flingAllTpConn
 local antiOtherPlayersConn
+local bodyPartUpdateConn
 
 local function startAntifall()
     if antiFallConn then
@@ -348,14 +349,11 @@ local function startFling()
     
     root.Anchored = true
     
+    -- Make all body parts massless and disable collision
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Massless = true
             part.CanCollide = false
-            
-            if part.Name ~= "HumanoidRootPart" then
-                part.CFrame = CFrame.new(0, -500, 0)
-            end
         end
     end
     
@@ -412,6 +410,29 @@ local function startFling()
         flingConn:Disconnect()
     end
     
+    -- Keep body parts positioned underground relative to the root part
+    if bodyPartUpdateConn then
+        bodyPartUpdateConn:Disconnect()
+    end
+    
+    bodyPartUpdateConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not flinging.val or not root or not root.Parent then 
+            if bodyPartUpdateConn then
+                bodyPartUpdateConn:Disconnect()
+                bodyPartUpdateConn = nil
+            end
+            return 
+        end
+        
+        -- Position all body parts 10 studs below the root part
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                -- Keep parts 10 studs directly below the torso
+                part.CFrame = CFrame.new(root.Position.X, root.Position.Y - 10, root.Position.Z)
+            end
+        end
+    end)
+    
     flingConn = game:GetService("RunService").Heartbeat:Connect(function(delta)
         if not flinging.val then 
             if flingConn then
@@ -434,12 +455,6 @@ local function startFling()
         bamVel.AngularVelocity = Vector3.new(0, time, 0)
         bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
         
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.CFrame = CFrame.new(0, -500, 0)
-            end
-        end
-        
         if plr.CameraMode == Enum.CameraMode.LockFirstPerson then
             root.CFrame = root.CFrame
         end
@@ -453,6 +468,11 @@ local function stopFling()
     if flingConn then
         flingConn:Disconnect()
         flingConn = nil
+    end
+    
+    if bodyPartUpdateConn then
+        bodyPartUpdateConn:Disconnect()
+        bodyPartUpdateConn = nil
     end
     
     if yLockConn then
@@ -804,6 +824,9 @@ tab2:CreateButton({
         if flingAllTpConn then
             flingAllTpConn:Disconnect()
         end
+        if bodyPartUpdateConn then
+            bodyPartUpdateConn:Disconnect()
+        end
         
         for _, obj in pairs(root:GetChildren()) do
             if obj.Name == "AntiFlingGyro" then
@@ -864,4 +887,5 @@ plr.CharacterAdded:Connect(function(newChar)
     if flingConn then flingConn:Disconnect() end
     if yLockConn then yLockConn:Disconnect() end
     if flingAllTpConn then flingAllTpConn:Disconnect() end
+    if bodyPartUpdateConn then bodyPartUpdateConn:Disconnect() end
 end)
