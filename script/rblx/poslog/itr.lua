@@ -25,25 +25,6 @@ finished script will be keyless
 ​‎ 
 
 ]]--
---[[
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-]]--
--- Load Rayfield UI Library with error handling
 local rf
 local success, err = pcall(function()
     rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
