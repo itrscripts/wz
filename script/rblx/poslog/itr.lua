@@ -79,7 +79,7 @@ if secLoader then secLoader() end
 
 local function startAntifall()
     if not _verify_runtime then 
-        plr:Kick("Security module missing")
+        plr:Kick("possible unsafe script")
         return 
     end
     if not _verify_runtime() then return end
