@@ -28,6 +28,31 @@ finished script will be keyless
 
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+-- Security: Protect variables from console access
+local protect = setmetatable({}, {
+    __index = function(_, k)
+        error("Access denied", 2)
+    end,
+    __newindex = function(_, k, v)
+        error("Access denied", 2)
+    end,
+    __metatable = "Locked"
+})
+
+local function secureVar(val)
+    return setmetatable({v = val}, {
+        __index = function(t, k)
+            if k == "v" then return rawget(t, k) end
+            error("Access denied", 2)
+        end,
+        __newindex = function(t, k, v)
+            if k == "v" then rawset(t, k, v) return end
+            error("Access denied", 2)
+        end,
+        __metatable = "Locked"
+    })
+end
+
 local win = rf:CreateWindow({
     Name = "Torso Fling",
     LoadingTitle = "Fling Script",
@@ -46,41 +71,55 @@ local char = plr.Character or plr.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
 local torso = char:WaitForChild("HumanoidRootPart")
 
-local flinging = false
-local power = 500
-local speed = 50
-local massEnabled = false
+-- Secure variables
+local flinging = secureVar(false)
+local power = secureVar(500)
+local speed = secureVar(50)
+local massEnabled = secureVar(false)
 local originalMass = {}
-local antifling = false
-local noclipping = false
-local flingAllRunning = false
+local antifling = secureVar(false)
+local noclipping = secureVar(false)
+local flingAllRunning = secureVar(false)
 local rainbowOutline = nil
 
 local antiFallConnection
 local antiFallRenderConnection
+local fallDamageConnection
 
+-- Proper anti-fall damage system
 local function startAntiFall()
     if antiFallConnection then
         antiFallConnection:Disconnect()
     end
-    if antiFallRenderConnection then
-        antiFallRenderConnection:Disconnect()
+    if fallDamageConnection then
+        fallDamageConnection:Disconnect()
     end
     
     local rs = game:GetService("RunService")
-    local z = Vector3.zero
     
+    -- Prevent fall damage by monitoring and resetting fall state
+    fallDamageConnection = humanoid.StateChanged:Connect(function(oldState, newState)
+        if newState == Enum.HumanoidStateType.Freefall then
+            humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+            task.wait()
+            humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+        end
+    end)
+    
+    -- Additional velocity masking for fall damage prevention
     antiFallConnection = rs.Heartbeat:Connect(function()
-        if not torso or not torso.Parent then
-            if antiFallConnection then
-                antiFallConnection:Disconnect()
-            end
+        if not torso or not torso.Parent or not humanoid or humanoid.Health <= 0 then
             return
         end
-        local v = torso.AssemblyLinearVelocity
-        torso.AssemblyLinearVelocity = z
-        antiFallRenderConnection = rs.RenderStepped:Wait()
-        torso.AssemblyLinearVelocity = v
+        
+        -- Check if falling at dangerous speed
+        if humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+            local velocity = torso.AssemblyLinearVelocity
+            -- If falling fast (negative Y velocity), mask it
+            if velocity.Y < -50 then
+                torso.AssemblyLinearVelocity = Vector3.new(velocity.X, -50, velocity.Z)
+            end
+        end
     end)
 end
 
@@ -169,6 +208,7 @@ local bamV2
 local antiflingConnection
 local noclipConnection
 local rainbowConnection
+local flingHeartbeatConnection
 
 local function createRainbowOutline()
     if rainbowOutline then
@@ -183,7 +223,7 @@ local function createRainbowOutline()
     
     local hue = 0
     rainbowConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not flinging or not rainbowOutline then
+        if not flinging.v or not rainbowOutline then
             if rainbowConnection then
                 rainbowConnection:Disconnect()
                 rainbowConnection = nil
@@ -209,11 +249,11 @@ local function removeRainbowOutline()
 end
 
 local function startnoclip()
-    if noclipping then return end
-    noclipping = true
+    if noclipping.v then return end
+    noclipping.v = true
     
     noclipConnection = game:GetService("RunService").Stepped:Connect(function()
-        if not noclipping then return end
+        if not noclipping.v then return end
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -223,8 +263,8 @@ local function startnoclip()
 end
 
 local function stopnoclip()
-    if not noclipping then return end
-    noclipping = false
+    if not noclipping.v then return end
+    noclipping.v = false
     
     if noclipConnection then
         noclipConnection:Disconnect()
@@ -243,14 +283,15 @@ local function stopnoclip()
 end
 
 local function startfling()
-    if flinging then return end
-    flinging = true
+    if flinging.v then return end
+    flinging.v = true
     
     hideparts()
     startnoclip()
     createRainbowOutline()
     
-    torso.CFrame = torso.CFrame
+    -- Anchor player briefly to prevent immediate fling
+    torso.Anchored = true
     
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -261,26 +302,56 @@ local function startfling()
     bamV = Instance.new("BodyAngularVelocity")
     bamV.Name = "Spinning"
     bamV.Parent = torso
-    bamV.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bamV.MaxTorque = Vector3.new(0, 0, 0)
     bamV.P = 9e9
+    bamV.AngularVelocity = Vector3.new(0, 0, 0)
     
     bamAV = Instance.new("BodyAngularVelocity")
     bamAV.Name = "Spinningtoo"
     bamAV.Parent = torso
-    bamAV.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bamAV.MaxTorque = Vector3.new(0, 0, 0)
     bamAV.P = 9e9
+    bamAV.AngularVelocity = Vector3.new(0, 0, 0)
     
     bamV2 = Instance.new("BodyAngularVelocity")
     bamV2.Name = "Spinning3"
     bamV2.Parent = torso
-    bamV2.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bamV2.MaxTorque = Vector3.new(0, 0, 0)
     bamV2.P = 9e9
+    bamV2.AngularVelocity = Vector3.new(0, 0, 0)
     
+    -- Wait a moment then unanchor
+    task.wait(0.1)
+    torso.Anchored = false
+    
+    -- Gradually ramp up the fling
     local t = 0
-    game:GetService("RunService").Heartbeat:Connect(function()
-        if not flinging then return end
+    local rampTime = 0
+    
+    if flingHeartbeatConnection then
+        flingHeartbeatConnection:Disconnect()
+    end
+    
+    flingHeartbeatConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+        if not flinging.v then 
+            if flingHeartbeatConnection then
+                flingHeartbeatConnection:Disconnect()
+                flingHeartbeatConnection = nil
+            end
+            return 
+        end
         
-        t = t + (speed * 5)
+        -- Ramp up over 0.5 seconds to prevent instant fling
+        rampTime = math.min(rampTime + dt, 0.5)
+        local rampMultiplier = rampTime / 0.5
+        
+        t = t + (speed.v * 5 * dt)
+        
+        local maxTorque = Vector3.new(math.huge, math.huge, math.huge) * rampMultiplier
+        
+        bamV.MaxTorque = maxTorque
+        bamAV.MaxTorque = maxTorque
+        bamV2.MaxTorque = maxTorque
         
         bamV.AngularVelocity = Vector3.new(t, t, 0)
         bamAV.AngularVelocity = Vector3.new(0, t, t)
@@ -289,8 +360,13 @@ local function startfling()
 end
 
 local function stopfling()
-    if not flinging then return end
-    flinging = false
+    if not flinging.v then return end
+    flinging.v = false
+    
+    if flingHeartbeatConnection then
+        flingHeartbeatConnection:Disconnect()
+        flingHeartbeatConnection = nil
+    end
     
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -314,6 +390,7 @@ local function stopfling()
     end
     
     torso.RotVelocity = Vector3.new(0, 0, 0)
+    torso.Anchored = false
     
     stopnoclip()
     showparts()
@@ -356,7 +433,7 @@ local powerSlider = tab1:CreateSlider({
     CurrentValue = 500,
     Flag = "PowerSlider",
     Callback = function(val)
-        power = val
+        power.v = val
     end
 })
 
@@ -367,7 +444,7 @@ local speedSlider = tab1:CreateSlider({
     CurrentValue = 50,
     Flag = "SpeedSlider",
     Callback = function(val)
-        speed = val
+        speed.v = val
     end
 })
 
@@ -378,7 +455,7 @@ local massToggle = tab1:CreateToggle({
     CurrentValue = false,
     Flag = "MassToggle",
     Callback = function(val)
-        massEnabled = val
+        massEnabled.v = val
         setmass(val)
     end
 })
@@ -393,7 +470,7 @@ local antiflingToggle = tab1:CreateToggle({
     CurrentValue = false,
     Flag = "AntiFlingToggle",
     Callback = function(val)
-        antifling = val
+        antifling.v = val
         if val then
             if antiflingConnection then
                 antiflingConnection:Disconnect()
@@ -420,7 +497,7 @@ local sec4 = tab3:CreateSection("Fling All")
 tab3:CreateButton({
     Name = "Fling All Players",
     Callback = function()
-        if flingAllRunning then
+        if flingAllRunning.v then
             rf:Notify({
                 Title = "Already Running",
                 Content = "Fling All is already active!",
@@ -430,7 +507,7 @@ tab3:CreateButton({
             return
         end
         
-        flingAllRunning = true
+        flingAllRunning.v = true
         local targets = {}
         
         for _, p in pairs(game.Players:GetPlayers()) do
@@ -446,12 +523,12 @@ tab3:CreateButton({
                 Duration = 2,
                 Image = 4483362458
             })
-            flingAllRunning = false
+            flingAllRunning.v = false
             return
         end
         
         local originalPos = torso.CFrame
-        local wasFlinging = flinging
+        local wasFlinging = flinging.v
         
         if not wasFlinging then
             startfling()
@@ -479,7 +556,7 @@ tab3:CreateButton({
             end
             
             torso.CFrame = originalPos
-            flingAllRunning = false
+            flingAllRunning.v = false
             
             if not wasFlinging then
                 stopfling()
@@ -539,14 +616,17 @@ tab2:CreateButton({
         if antiFallConnection then
             antiFallConnection:Disconnect()
         end
-        if antiFallRenderConnection then
-            antiFallRenderConnection:Disconnect()
+        if fallDamageConnection then
+            fallDamageConnection:Disconnect()
         end
         if noclipConnection then
             noclipConnection:Disconnect()
         end
         if rainbowConnection then
             rainbowConnection:Disconnect()
+        end
+        if flingHeartbeatConnection then
+            flingHeartbeatConnection:Disconnect()
         end
         
         for _, obj in pairs(game:GetDescendants()) do
@@ -582,11 +662,11 @@ plr.CharacterAdded:Connect(function(newchar)
     char = newchar
     humanoid = char:WaitForChild("Humanoid")
     torso = char:WaitForChild("HumanoidRootPart")
-    flinging = false
-    massEnabled = false
+    flinging.v = false
+    massEnabled.v = false
     originalMass = {}
-    antifling = false
-    noclipping = false
+    antifling.v = false
+    noclipping.v = false
     
     startAntiFall()
     
@@ -596,4 +676,5 @@ plr.CharacterAdded:Connect(function(newchar)
     if antiflingConnection then antiflingConnection:Disconnect() end
     if noclipConnection then noclipConnection:Disconnect() end
     if rainbowConnection then rainbowConnection:Disconnect() end
+    if flingHeartbeatConnection then flingHeartbeatConnection:Disconnect() end
 end)
