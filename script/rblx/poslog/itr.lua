@@ -43,7 +43,25 @@ finished script will be keyless
 
 
 ]]--
-local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load Rayfield UI Library with error handling
+local rf
+local success, err = pcall(function()
+    rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not success or not rf then
+    warn("Failed to load Rayfield UI Library:", err)
+    warn("Trying alternative URL...")
+    
+    success, err = pcall(function()
+        rf = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+    end)
+    
+    if not success or not rf then
+        error("Could not load Rayfield UI Library. Error: " .. tostring(err))
+        return
+    end
+end
 
 local function secVar(val)
     return setmetatable({val = val}, {
