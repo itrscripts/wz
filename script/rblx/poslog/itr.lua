@@ -29,50 +29,24 @@ finished script will be keyless
 
 local rf = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local protect = setmetatable({}, {
-    __index = function(_, k)
-        error("Access denied", 2)
-    end,
-    __newindex = function(_, k, v)
-        error("Access denied", 2)
-    end,
-    __metatable = "Locked"
-})
-
-local function secureVar(val)
-    return setmetatable({v = val}, {
-        __index = function(t, k)
-            if k == "v" then return rawget(t, k) end
+local function secVar(val)
+    return setmetatable({val = val}, {
+        __index = function(tbl, key)
+            if key == "val" then return rawget(tbl, key) end
             error("Access denied", 2)
         end,
-        __newindex = function(t, k, v)
-            if k == "v" then rawset(t, k, v) return end
+        __newindex = function(tbl, key, val)
+            if key == "val" then rawset(tbl, key, val) return end
             error("Access denied", 2)
         end,
         __metatable = "Locked"
     })
 end
 
-local _G_verified = false
-local _source_check = debug.getinfo(1).source
-if _source_check and (_source_check:find("github") or _source_check:find("itrscripts")) then
-    _G_verified = true
-end
-
-local function _init_security()
-    local _stack = debug.traceback()
-    if not _stack then return false end
-    if _stack:find("HttpGet") and (_stack:find("githubusercontent") or _stack:find("github")) then
-        return true
-    end
-    return false
-end
-
-local _auth_token = _init_security()
-if not _auth_token and not _G_verified then
-    game.Players.LocalPlayer:Kick("Failed to verify script source. Please use official loadstring.")
-    return
-end
+local plr = game.Players.LocalPlayer
+local char = plr.Character or plr.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+local root = char:WaitForChild("HumanoidRootPart")
 
 local win = rf:CreateWindow({
     Name = "Torso Fling",
@@ -87,81 +61,75 @@ local win = rf:CreateWindow({
     KeySystem = false
 })
 
-local plr = game.Players.LocalPlayer
-local char = plr.Character or plr.CharacterAdded:Wait()
-local humanoid = char:WaitForChild("Humanoid")
-local torso = char:WaitForChild("HumanoidRootPart")
+local flinging = secVar(false)
+local power = secVar(500)
+local speed = secVar(50)
+local massEnabled = secVar(false)
+local origMass = {}
+local antiFling = secVar(false)
+local noClip = secVar(false)
+local flingAll = secVar(false)
+local rainbow = nil
 
-local flinging = secureVar(false)
-local power = secureVar(500)
-local speed = secureVar(50)
-local massEnabled = secureVar(false)
-local originalMass = {}
-local antifling = secureVar(false)
-local noclipping = secureVar(false)
-local flingAllRunning = secureVar(false)
-local rainbowOutline = nil
+local antiFallConn
+local fallDmgConn
 
-local antiFallConnection
-local fallDamageConnection
+local secLoader = loadstring(game:HttpGet("https://raw.githubusercontent.com/itrscripts/wz/refs/heads/main/script/rblx/poslog/sk/protect.lua",true))
+if secLoader then secLoader() end
 
-local function _verify_runtime()
-    if not _auth_token and not _G_verified then
-        plr:Kick("Security check failed")
-        return false
+local function startAntifall()
+    if not _verify_runtime then 
+        plr:Kick("Security module missing")
+        return 
     end
-    return true
-end
-
-local function startAntiFall()
     if not _verify_runtime() then return end
     
-    if antiFallConnection then
-        antiFallConnection:Disconnect()
+    if antiFallConn then
+        antiFallConn:Disconnect()
     end
-    if fallDamageConnection then
-        fallDamageConnection:Disconnect()
+    if fallDmgConn then
+        fallDmgConn:Disconnect()
     end
     
-    local rs = game:GetService("RunService")
+    local runServ = game:GetService("RunService")
     
-    fallDamageConnection = humanoid.StateChanged:Connect(function(oldState, newState)
+    fallDmgConn = hum.StateChanged:Connect(function(oldState, newState)
         if newState == Enum.HumanoidStateType.Freefall then
-            humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+            hum:ChangeState(Enum.HumanoidStateType.Flying)
             task.wait()
-            humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+            hum:ChangeState(Enum.HumanoidStateType.Freefall)
         end
     end)
     
-    local lastSafeVelocity = Vector3.new(0, 0, 0)
+    local safeVel = Vector3.new(0, 0, 0)
     
-    antiFallConnection = rs.Heartbeat:Connect(function()
-        if not torso or not torso.Parent or not humanoid or humanoid.Health <= 0 then
+    antiFallConn = runServ.Heartbeat:Connect(function()
+        if not root or not root.Parent or not hum or hum.Health <= 0 then
             return
         end
         
-        if humanoid:GetState() == Enum.HumanoidStateType.Freefall then
-            local velocity = torso.AssemblyLinearVelocity
-            if velocity.Y < -50 then
-                lastSafeVelocity = Vector3.new(velocity.X, -50, velocity.Z)
-                local temp = torso.AssemblyLinearVelocity
-                torso.AssemblyLinearVelocity = lastSafeVelocity
-                rs.RenderStepped:Wait()
-                if torso and torso.Parent then
-                    torso.AssemblyLinearVelocity = temp
+        if hum:GetState() == Enum.HumanoidStateType.Freefall then
+            local vel = root.AssemblyLinearVelocity
+            if vel.Y < -50 then
+                safeVel = Vector3.new(vel.X, -50, vel.Z)
+                local tempVel = root.AssemblyLinearVelocity
+                root.AssemblyLinearVelocity = safeVel
+                runServ.RenderStepped:Wait()
+                if root and root.Parent then
+                    root.AssemblyLinearVelocity = tempVel
                 end
             end
         end
     end)
 end
 
-startAntiFall()
+startAntifall()
 
 local tab1 = win:CreateTab("Fling", 4483362458)
 
 local sec1 = tab1:CreateSection("Controls")
 
-local function hideparts()
+local function hideParts()
     if not _verify_runtime() then return end
     
     for _, part in pairs(char:GetDescendants()) do
@@ -180,12 +148,12 @@ local function hideparts()
         end
     end
     
-    if torso then
-        torso.Transparency = 0.5
+    if root then
+        root.Transparency = 0.5
     end
 end
 
-local function showparts()
+local function showParts()
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
             part.Transparency = 0
@@ -202,19 +170,19 @@ local function showparts()
         end
     end
     
-    if torso then
-        torso.Transparency = 1
+    if root then
+        root.Transparency = 1
     end
 end
 
-local function setmass(enabled)
+local function setMass(enabled)
     if not _verify_runtime() then return end
     
     if enabled then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
-                if not originalMass[part] then
-                    originalMass[part] = part:GetMass()
+                if not origMass[part] then
+                    origMass[part] = part:GetMass()
                 end
                 
                 local props = part.CustomPhysicalProperties or PhysicalProperties.new(part.Material)
@@ -234,62 +202,62 @@ local function setmass(enabled)
                 part.CustomPhysicalProperties = nil
             end
         end
-        originalMass = {}
+        origMass = {}
     end
 end
 
-local bamV
-local bamAV
-local bamV2
-local antiflingConnection
-local noclipConnection
-local rainbowConnection
-local flingHeartbeatConnection
+local bamVel
+local bamAngVel
+local bamVel2
+local antiConn
+local noclipConn
+local rainbowConn
+local flingConn
 
-local function createRainbowOutline()
-    if rainbowOutline then
-        rainbowOutline:Destroy()
+local function createRainbow()
+    if rainbow then
+        rainbow:Destroy()
     end
     
-    rainbowOutline = Instance.new("SelectionBox")
-    rainbowOutline.Name = "RainbowOutline"
-    rainbowOutline.Adornee = torso
-    rainbowOutline.LineThickness = 0.05
-    rainbowOutline.Parent = torso
+    rainbow = Instance.new("SelectionBox")
+    rainbow.Name = "RainbowOutline"
+    rainbow.Adornee = root
+    rainbow.LineThickness = 0.05
+    rainbow.Parent = root
     
     local hue = 0
-    rainbowConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not flinging.v or not rainbowOutline then
-            if rainbowConnection then
-                rainbowConnection:Disconnect()
-                rainbowConnection = nil
+    rainbowConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not flinging.val or not rainbow then
+            if rainbowConn then
+                rainbowConn:Disconnect()
+                rainbowConn = nil
             end
             return
         end
         
         hue = (hue + 0.01) % 1
-        rainbowOutline.Color3 = Color3.fromHSV(hue, 1, 1)
+        rainbow.Color3 = Color3.fromHSV(hue, 1, 1)
     end)
 end
 
-local function removeRainbowOutline()
-    if rainbowOutline then
-        rainbowOutline:Destroy()
-        rainbowOutline = nil
+local function removeRainbow()
+    if rainbow then
+        rainbow:Destroy()
+        rainbow = nil
     end
     
-    if rainbowConnection then
-        rainbowConnection:Disconnect()
-        rainbowConnection = nil
+    if rainbowConn then
+        rainbowConn:Disconnect()
+        rainbowConn = nil
     end
 end
 
-local function startnoclip()
-    if noclipping.v then return end
-    noclipping.v = true
+local function startNoclip()
+    if noClip.val then return end
+    noClip.val = true
     
-    noclipConnection = game:GetService("RunService").Stepped:Connect(function()
-        if not noclipping.v then return end
+    noclipConn = game:GetService("RunService").Stepped:Connect(function()
+        if not noClip.val then return end
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
@@ -298,13 +266,13 @@ local function startnoclip()
     end)
 end
 
-local function stopnoclip()
-    if not noclipping.v then return end
-    noclipping.v = false
+local function stopNoclip()
+    if not noClip.val then return end
+    noClip.val = false
     
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
+    if noclipConn then
+        noclipConn:Disconnect()
+        noclipConn = nil
     end
     
     for _, part in pairs(char:GetDescendants()) do
@@ -318,16 +286,20 @@ local function stopnoclip()
     end
 end
 
-local function startfling()
+local function startFling()
+    if not _verify_runtime then
+        plr:Kick("Script verification failed")
+        return
+    end
     if not _verify_runtime() then return end
-    if flinging.v then return end
-    flinging.v = true
+    if flinging.val then return end
+    flinging.val = true
     
-    hideparts()
-    startnoclip()
-    createRainbowOutline()
+    hideParts()
+    startNoclip()
+    createRainbow()
     
-    torso.Anchored = true
+    root.Anchored = true
     
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -335,66 +307,66 @@ local function startfling()
         end
     end
     
-    bamV = Instance.new("BodyAngularVelocity")
-    bamV.Name = "Spinning"
-    bamV.Parent = torso
-    bamV.MaxTorque = Vector3.new(0, 0, 0)
-    bamV.P = 9e9
-    bamV.AngularVelocity = Vector3.new(0, 0, 0)
+    bamVel = Instance.new("BodyAngularVelocity")
+    bamVel.Name = "Spinning"
+    bamVel.Parent = root
+    bamVel.MaxTorque = Vector3.new(0, 0, 0)
+    bamVel.P = 9e9
+    bamVel.AngularVelocity = Vector3.new(0, 0, 0)
     
-    bamAV = Instance.new("BodyAngularVelocity")
-    bamAV.Name = "Spinningtoo"
-    bamAV.Parent = torso
-    bamAV.MaxTorque = Vector3.new(0, 0, 0)
-    bamAV.P = 9e9
-    bamAV.AngularVelocity = Vector3.new(0, 0, 0)
+    bamAngVel = Instance.new("BodyAngularVelocity")
+    bamAngVel.Name = "Spinningtoo"
+    bamAngVel.Parent = root
+    bamAngVel.MaxTorque = Vector3.new(0, 0, 0)
+    bamAngVel.P = 9e9
+    bamAngVel.AngularVelocity = Vector3.new(0, 0, 0)
     
     task.wait(0.1)
-    torso.Anchored = false
+    root.Anchored = false
     
-    local t = 0
+    local time = 0
     local rampTime = 0
     
-    if flingHeartbeatConnection then
-        flingHeartbeatConnection:Disconnect()
+    if flingConn then
+        flingConn:Disconnect()
     end
     
-    flingHeartbeatConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
-        if not flinging.v then 
-            if flingHeartbeatConnection then
-                flingHeartbeatConnection:Disconnect()
-                flingHeartbeatConnection = nil
+    flingConn = game:GetService("RunService").Heartbeat:Connect(function(delta)
+        if not flinging.val then 
+            if flingConn then
+                flingConn:Disconnect()
+                flingConn = nil
             end
             return 
         end
         
         if not _verify_runtime() then
-            stopfling()
+            stopFling()
             return
         end
         
-        rampTime = math.min(rampTime + dt, 0.5)
-        local rampMultiplier = rampTime / 0.5
+        rampTime = math.min(rampTime + delta, 0.5)
+        local rampMult = rampTime / 0.5
         
-        t = t + (speed.v * 5 * dt)
+        time = time + (speed.val * 5 * delta)
         
-        local maxTorque = Vector3.new(math.huge, math.huge, math.huge) * rampMultiplier
+        local maxTorque = Vector3.new(math.huge, math.huge, math.huge) * rampMult
         
-        bamV.MaxTorque = maxTorque
-        bamAV.MaxTorque = maxTorque
+        bamVel.MaxTorque = maxTorque
+        bamAngVel.MaxTorque = maxTorque
         
-        bamV.AngularVelocity = Vector3.new(0, t, 0)
-        bamAV.AngularVelocity = Vector3.new(t, 0, 0)
+        bamVel.AngularVelocity = Vector3.new(0, time, 0)
+        bamAngVel.AngularVelocity = Vector3.new(time, 0, 0)
     end)
 end
 
-local function stopfling()
-    if not flinging.v then return end
-    flinging.v = false
+local function stopFling()
+    if not flinging.val then return end
+    flinging.val = false
     
-    if flingHeartbeatConnection then
-        flingHeartbeatConnection:Disconnect()
-        flingHeartbeatConnection = nil
+    if flingConn then
+        flingConn:Disconnect()
+        flingConn = nil
     end
     
     for _, part in pairs(char:GetDescendants()) do
@@ -403,27 +375,27 @@ local function stopfling()
         end
     end
     
-    if bamV then
-        bamV:Destroy()
-        bamV = nil
+    if bamVel then
+        bamVel:Destroy()
+        bamVel = nil
     end
     
-    if bamAV then
-        bamAV:Destroy()
-        bamAV = nil
+    if bamAngVel then
+        bamAngVel:Destroy()
+        bamAngVel = nil
     end
     
-    if bamV2 then
-        bamV2:Destroy()
-        bamV2 = nil
+    if bamVel2 then
+        bamVel2:Destroy()
+        bamVel2 = nil
     end
     
-    torso.RotVelocity = Vector3.new(0, 0, 0)
-    torso.Anchored = false
+    root.RotVelocity = Vector3.new(0, 0, 0)
+    root.Anchored = false
     
-    stopnoclip()
-    showparts()
-    removeRainbowOutline()
+    stopNoclip()
+    showParts()
+    removeRainbow()
 end
 
 local flingToggle = tab1:CreateToggle({
@@ -432,29 +404,29 @@ local flingToggle = tab1:CreateToggle({
     Flag = "FlingToggle",
     Callback = function(val)
         if val then
-            startfling()
+            startFling()
         else
-            stopfling()
+            stopFling()
         end
     end
 })
 
-humanoid.Died:Connect(function()
-    if flingAllRunning.v then
-        flingAllRunning.v = false
+hum.Died:Connect(function()
+    if flingAll.val then
+        flingAll.val = false
     end
     
     task.wait(5)
     if plr.Character then
         char = plr.Character
-        humanoid = char:WaitForChild("Humanoid")
-        torso = char:WaitForChild("HumanoidRootPart")
+        hum = char:WaitForChild("Humanoid")
+        root = char:WaitForChild("HumanoidRootPart")
         
-        startAntiFall()
+        startAntifall()
         
         if flingToggle.CurrentValue then
             task.wait(0.5)
-            startfling()
+            startFling()
         end
     end
 end)
@@ -466,7 +438,7 @@ local powerSlider = tab1:CreateSlider({
     CurrentValue = 500,
     Flag = "PowerSlider",
     Callback = function(val)
-        power.v = val
+        power.val = val
     end
 })
 
@@ -477,7 +449,7 @@ local speedSlider = tab1:CreateSlider({
     CurrentValue = 50,
     Flag = "SpeedSlider",
     Callback = function(val)
-        speed.v = val
+        speed.val = val
     end
 })
 
@@ -488,8 +460,8 @@ local massToggle = tab1:CreateToggle({
     CurrentValue = false,
     Flag = "MassToggle",
     Callback = function(val)
-        massEnabled.v = val
-        setmass(val)
+        massEnabled.val = val
+        setMass(val)
     end
 })
 
@@ -498,45 +470,50 @@ tab1:CreateParagraph({
     Content = "Body Mass makes your character extremely heavy so you can push and fling things easier. Anti-fall damage is always active!"
 })
 
-local antiflingToggle = tab1:CreateToggle({
+local antiFlingToggle = tab1:CreateToggle({
     Name = "Anti-Fling",
     CurrentValue = false,
     Flag = "AntiFlingToggle",
     Callback = function(val)
-        antifling.v = val
+        antiFling.val = val
         if val then
-            if antiflingConnection then
-                antiflingConnection:Disconnect()
+            if antiConn then
+                antiConn:Disconnect()
             end
             
             local bodyGyro = Instance.new("BodyGyro")
             bodyGyro.Name = "AntiFlingGyro"
-            bodyGyro.Parent = torso
+            bodyGyro.Parent = root
             bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
             bodyGyro.P = 10000
             bodyGyro.D = 500
             
-            antiflingConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if torso and humanoid.Health > 0 and bodyGyro then
-                    local currentVel = torso.AssemblyLinearVelocity
-                    local moveDir = humanoid.MoveDirection
-                    local targetVel = Vector3.new(0, currentVel.Y, 0)
+            if not _verify_runtime then
+                plr:Kick("Unauthorized modification detected")
+                return
+            end
+            
+            antiConn = game:GetService("RunService").Heartbeat:Connect(function()
+                if root and hum.Health > 0 and bodyGyro then
+                    local currVel = root.AssemblyLinearVelocity
+                    local moveDir = hum.MoveDirection
+                    local targetVel = Vector3.new(0, currVel.Y, 0)
                     
                     if moveDir.Magnitude > 0 then
-                        targetVel = (moveDir * humanoid.WalkSpeed) + Vector3.new(0, currentVel.Y, 0)
+                        targetVel = (moveDir * hum.WalkSpeed) + Vector3.new(0, currVel.Y, 0)
                     end
                     
-                    torso.AssemblyLinearVelocity = targetVel
-                    bodyGyro.CFrame = torso.CFrame
+                    root.AssemblyLinearVelocity = targetVel
+                    bodyGyro.CFrame = root.CFrame
                 end
             end)
         else
-            if antiflingConnection then
-                antiflingConnection:Disconnect()
-                antiflingConnection = nil
+            if antiConn then
+                antiConn:Disconnect()
+                antiConn = nil
             end
             
-            for _, obj in pairs(torso:GetChildren()) do
+            for _, obj in pairs(root:GetChildren()) do
                 if obj.Name == "AntiFlingGyro" then
                     obj:Destroy()
                 end
@@ -554,7 +531,7 @@ tab3:CreateButton({
     Callback = function()
         if not _verify_runtime() then return end
         
-        if flingAllRunning.v then
+        if flingAll.val then
             rf:Notify({
                 Title = "Already Running",
                 Content = "Fling All is already active!",
@@ -564,12 +541,12 @@ tab3:CreateButton({
             return
         end
         
-        flingAllRunning.v = true
+        flingAll.val = true
         local targets = {}
         
-        for _, p in pairs(game.Players:GetPlayers()) do
-            if p ~= plr and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                table.insert(targets, p)
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= plr and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                table.insert(targets, player)
             end
         end
         
@@ -580,29 +557,29 @@ tab3:CreateButton({
                 Duration = 2,
                 Image = 4483362458
             })
-            flingAllRunning.v = false
+            flingAll.val = false
             return
         end
         
-        local originalPos = torso.CFrame
-        local wasFlinging = flinging.v
+        local origPos = root.CFrame
+        local wasFlinging = flinging.val
         
         if not wasFlinging then
-            startfling()
+            startFling()
         end
         
         local flinged = {}
         
         spawn(function()
             for _, target in pairs(targets) do
-                if not flingAllRunning.v then
+                if not flingAll.val then
                     break
                 end
                 
                 if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
                     local targetRoot = target.Character.HumanoidRootPart
                     
-                    torso.CFrame = targetRoot.CFrame
+                    root.CFrame = targetRoot.CFrame
                     table.insert(flinged, target.Name)
                     
                     rf:Notify({
@@ -616,14 +593,14 @@ tab3:CreateButton({
                 end
             end
             
-            if torso and torso.Parent then
-                torso.CFrame = originalPos
+            if root and root.Parent then
+                root.CFrame = origPos
             end
             
-            flingAllRunning.v = false
+            flingAll.val = false
             
             if not wasFlinging then
-                stopfling()
+                stopFling()
             end
             
             rf:Notify({
@@ -648,52 +625,52 @@ local sec3 = tab2:CreateSection("Options")
 tab2:CreateButton({
     Name = "Reset Character",
     Callback = function()
-        stopfling()
-        setmass(false)
-        humanoid.Health = 0
+        stopFling()
+        setMass(false)
+        hum.Health = 0
     end
 })
 
 tab2:CreateButton({
     Name = "Show Body Parts",
     Callback = function()
-        showparts()
+        showParts()
     end
 })
 
 tab2:CreateButton({
     Name = "Hide Body Parts",
     Callback = function()
-        hideparts()
+        hideParts()
     end
 })
 
 tab2:CreateButton({
     Name = "Unload Script",
     Callback = function()
-        stopfling()
-        setmass(false)
-        showparts()
-        if antiflingConnection then
-            antiflingConnection:Disconnect()
+        stopFling()
+        setMass(false)
+        showParts()
+        if antiConn then
+            antiConn:Disconnect()
         end
-        if antiFallConnection then
-            antiFallConnection:Disconnect()
+        if antiFallConn then
+            antiFallConn:Disconnect()
         end
-        if fallDamageConnection then
-            fallDamageConnection:Disconnect()
+        if fallDmgConn then
+            fallDmgConn:Disconnect()
         end
-        if noclipConnection then
-            noclipConnection:Disconnect()
+        if noclipConn then
+            noclipConn:Disconnect()
         end
-        if rainbowConnection then
-            rainbowConnection:Disconnect()
+        if rainbowConn then
+            rainbowConn:Disconnect()
         end
-        if flingHeartbeatConnection then
-            flingHeartbeatConnection:Disconnect()
+        if flingConn then
+            flingConn:Disconnect()
         end
         
-        for _, obj in pairs(torso:GetChildren()) do
+        for _, obj in pairs(root:GetChildren()) do
             if obj.Name == "AntiFlingGyro" then
                 obj:Destroy()
             end
@@ -731,23 +708,23 @@ rf:Notify({
     Image = 4483362458
 })
 
-plr.CharacterAdded:Connect(function(newchar)
-    char = newchar
-    humanoid = char:WaitForChild("Humanoid")
-    torso = char:WaitForChild("HumanoidRootPart")
-    flinging.v = false
-    massEnabled.v = false
-    originalMass = {}
-    antifling.v = false
-    noclipping.v = false
+plr.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hum = char:WaitForChild("Humanoid")
+    root = char:WaitForChild("HumanoidRootPart")
+    flinging.val = false
+    massEnabled.val = false
+    origMass = {}
+    antiFling.val = false
+    noClip.val = false
     
-    startAntiFall()
+    startAntifall()
     
-    if bamV then bamV:Destroy() end
-    if bamAV then bamAV:Destroy() end
-    if bamV2 then bamV2:Destroy() end
-    if antiflingConnection then antiflingConnection:Disconnect() end
-    if noclipConnection then noclipConnection:Disconnect() end
-    if rainbowConnection then rainbowConnection:Disconnect() end
-    if flingHeartbeatConnection then flingHeartbeatConnection:Disconnect() end
+    if bamVel then bamVel:Destroy() end
+    if bamAngVel then bamAngVel:Destroy() end
+    if bamVel2 then bamVel2:Destroy() end
+    if antiConn then antiConn:Disconnect() end
+    if noclipConn then noclipConn:Disconnect() end
+    if rainbowConn then rainbowConn:Disconnect() end
+    if flingConn then flingConn:Disconnect() end
 end)
