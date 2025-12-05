@@ -8,20 +8,21 @@ finished script will be keyless
   \ \  \       \ \  \   \ \  \\  \|  ___   \ \  \|\__\_\  \       \ \  \   \ \  \_|
    \ \__\       \ \__\   \ \__\\ _\ |\__\   \ \____________\       \ \__\   \ \__\ 
     \|__|        \|__|    \|__|\|__|\|__|    \|____________|        \|__|    \|__| 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
+​‎ 
 
 ]]--
 
@@ -51,6 +52,8 @@ local speed = 50
 local massEnabled = false
 local originalMass = {}
 local antifling = false
+local noclipping = false
+local flingAllRunning = false
 
 local tab1 = win:CreateTab("Fling", 4483362458)
 
@@ -72,6 +75,10 @@ local function hideparts()
             end
         end
     end
+    
+    if torso then
+        torso.Transparency = 0.5
+    end
 end
 
 local function showparts()
@@ -89,6 +96,10 @@ local function showparts()
                 handle.Transparency = 0
             end
         end
+    end
+    
+    if torso then
+        torso.Transparency = 1
     end
 end
 
@@ -121,16 +132,51 @@ local function setmass(enabled)
     end
 end
 
-local bg
 local bamV
 local bamAV
 local antiflingConnection
+local noclipConnection
+
+local function startnoclip()
+    if noclipping then return end
+    noclipping = true
+    
+    noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+        if not noclipping then return end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function stopnoclip()
+    if not noclipping then return end
+    noclipping = false
+    
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if part.Name == "HumanoidRootPart" or part.Name == "Head" or part.Name:find("Torso") or part.Name:find("Arm") or part.Name:find("Leg") then
+                part.CanCollide = false
+            else
+                part.CanCollide = true
+            end
+        end
+    end
+end
 
 local function startfling()
     if flinging then return end
     flinging = true
     
     hideparts()
+    startnoclip()
     
     torso.CFrame = torso.CFrame
     
@@ -138,19 +184,19 @@ local function startfling()
     bamV.Name = "Spinning"
     bamV.Parent = torso
     bamV.MaxTorque = Vector3.new(0, math.huge, 0)
-    bamV.P = 1000000
+    bamV.P = 9e9
     
     bamAV = Instance.new("BodyAngularVelocity")
     bamAV.Name = "Spinningtoo"
     bamAV.Parent = torso
     bamAV.MaxTorque = Vector3.new(math.huge, 0, math.huge)
-    bamAV.P = 1000000
+    bamAV.P = 9e9
     
     local t = 0
     game:GetService("RunService").Heartbeat:Connect(function()
         if not flinging then return end
         
-        t = t + (speed / 10)
+        t = t + (speed * 5)
         
         bamV.AngularVelocity = Vector3.new(0, t, 0)
         bamAV.AngularVelocity = Vector3.new(t, 0, t)
@@ -173,6 +219,7 @@ local function stopfling()
     
     torso.RotVelocity = Vector3.new(0, 0, 0)
     
+    stopnoclip()
     showparts()
 end
 
@@ -239,8 +286,9 @@ local antiflingToggle = tab1:CreateToggle({
                 antiflingConnection:Disconnect()
             end
             antiflingConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                if torso then
+                if torso and humanoid.Health > 0 then
                     torso.Velocity = Vector3.new(0, 0, 0)
+                    torso.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 end
             end)
         else
@@ -250,6 +298,95 @@ local antiflingToggle = tab1:CreateToggle({
             end
         end
     end
+})
+
+local tab3 = win:CreateTab("Rage", 4483362458)
+
+local sec4 = tab3:CreateSection("Fling All")
+
+tab3:CreateButton({
+    Name = "Fling All Players",
+    Callback = function()
+        if flingAllRunning then
+            rf:Notify({
+                Title = "Already Running",
+                Content = "Fling All is already active!",
+                Duration = 2,
+                Image = 4483362458
+            })
+            return
+        end
+        
+        flingAllRunning = true
+        local targets = {}
+        local startTime = tick()
+        
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= plr and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                table.insert(targets, p)
+            end
+        end
+        
+        if #targets == 0 then
+            rf:Notify({
+                Title = "No Players",
+                Content = "No players found to fling!",
+                Duration = 2,
+                Image = 4483362458
+            })
+            flingAllRunning = false
+            return
+        end
+        
+        local originalPos = torso.CFrame
+        local wasFlinging = flinging
+        
+        if not wasFlinging then
+            startfling()
+        end
+        
+        local flinged = {}
+        
+        spawn(function()
+            while flingAllRunning and tick() - startTime < 3 do
+                for _, target in pairs(targets) do
+                    if not table.find(flinged, target.Name) and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        local targetRoot = target.Character.HumanoidRootPart
+                        torso.CFrame = targetRoot.CFrame
+                        task.wait(0.1)
+                        table.insert(flinged, target.Name)
+                        
+                        rf:Notify({
+                            Title = "Flinged",
+                            Content = "Flinged " .. target.Name,
+                            Duration = 1,
+                            Image = 4483362458
+                        })
+                    end
+                end
+                task.wait()
+            end
+            
+            torso.CFrame = originalPos
+            flingAllRunning = false
+            
+            if not wasFlinging then
+                stopfling()
+            end
+            
+            rf:Notify({
+                Title = "Completed",
+                Content = "Flinged " .. #flinged .. " players!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end)
+    end
+})
+
+tab3:CreateParagraph({
+    Title = "How It Works",
+    Content = "Fling All teleports your spinning torso to every player for 3 seconds total. Each player is only targeted once. Perfect for clearing servers!"
 })
 
 local tab2 = win:CreateTab("Settings", 4483362458)
@@ -318,8 +455,10 @@ plr.CharacterAdded:Connect(function(newchar)
     massEnabled = false
     originalMass = {}
     antifling = false
+    noclipping = false
     
     if bamV then bamV:Destroy() end
     if bamAV then bamAV:Destroy() end
     if antiflingConnection then antiflingConnection:Disconnect() end
+    if noclipConnection then noclipConnection:Disconnect() end
 end)
