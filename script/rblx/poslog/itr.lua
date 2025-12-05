@@ -70,20 +70,12 @@ local antiFling = secVar(false)
 local noClip = secVar(false)
 local flingAll = secVar(false)
 local rainbow = nil
+local _authToken = "69747273637269707473"
 
 local antiFallConn
 local fallDmgConn
 
-local secLoader = loadstring(game:HttpGet("https://raw.githubusercontent.com/itrscripts/wz/refs/heads/main/script/rblx/poslog/sk/protect.lua",true))
-if secLoader then secLoader() end
-
 local function startAntifall()
-    if not _verify_runtime then 
-        plr:Kick("possible unsafe script")
-        return 
-    end
-    if not _verify_runtime() then return end
-    
     if antiFallConn then
         antiFallConn:Disconnect()
     end
@@ -130,8 +122,6 @@ local tab1 = win:CreateTab("Fling", 4483362458)
 local sec1 = tab1:CreateSection("Controls")
 
 local function hideParts()
-    if not _verify_runtime() then return end
-    
     for _, part in pairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
             part.Transparency = 1
@@ -176,8 +166,6 @@ local function showParts()
 end
 
 local function setMass(enabled)
-    if not _verify_runtime() then return end
-    
     if enabled then
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -287,11 +275,6 @@ local function stopNoclip()
 end
 
 local function startFling()
-    if not _verify_runtime then
-        plr:Kick("Script verification failed")
-        return
-    end
-    if not _verify_runtime() then return end
     if flinging.val then return end
     flinging.val = true
     
@@ -338,11 +321,6 @@ local function startFling()
                 flingConn = nil
             end
             return 
-        end
-        
-        if not _verify_runtime() then
-            stopFling()
-            return
         end
         
         rampTime = math.min(rampTime + delta, 0.5)
@@ -410,6 +388,15 @@ local flingToggle = tab1:CreateToggle({
         end
     end
 })
+
+local secLoader = loadstring(game:HttpGet("https://raw.githubusercontent.com/itrscripts/wz/refs/heads/main/script/rblx/poslog/sk/protect.lua",true))
+if secLoader then 
+    local secEnv = getfenv(secLoader)
+    secEnv._script_token = "6769746875622e636f6d2f69747273637269707473"
+    secEnv._local_token = _authToken
+    setfenv(secLoader, secEnv)
+    secLoader() 
+end
 
 hum.Died:Connect(function()
     if flingAll.val then
@@ -488,11 +475,6 @@ local antiFlingToggle = tab1:CreateToggle({
             bodyGyro.P = 10000
             bodyGyro.D = 500
             
-            if not _verify_runtime then
-                plr:Kick("Unauthorized modification detected")
-                return
-            end
-            
             antiConn = game:GetService("RunService").Heartbeat:Connect(function()
                 if root and hum.Health > 0 and bodyGyro then
                     local currVel = root.AssemblyLinearVelocity
@@ -529,8 +511,6 @@ local sec4 = tab3:CreateSection("Fling All")
 tab3:CreateButton({
     Name = "Fling All Players",
     Callback = function()
-        if not _verify_runtime() then return end
-        
         if flingAll.val then
             rf:Notify({
                 Title = "Already Running",
