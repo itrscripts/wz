@@ -74,6 +74,8 @@ local _authToken = "69747273637269707473"
 
 local antiFallConn
 local fallDmgConn
+local yLockConn
+local flingAllTpConn
 
 local function startAntifall()
     if antiFallConn then
@@ -274,6 +276,36 @@ local function stopNoclip()
     end
 end
 
+local function lockYAxis(duration)
+    if yLockConn then
+        yLockConn:Disconnect()
+    end
+    
+    local startY = root.Position.Y
+    local startTime = tick()
+    
+    yLockConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not root or not root.Parent then
+            if yLockConn then
+                yLockConn:Disconnect()
+                yLockConn = nil
+            end
+            return
+        end
+        
+        if tick() - startTime >= duration then
+            if yLockConn then
+                yLockConn:Disconnect()
+                yLockConn = nil
+            end
+            return
+        end
+        
+        local currentPos = root.Position
+        root.CFrame = CFrame.new(currentPos.X, startY, currentPos.Z) * (root.CFrame - root.Position)
+    end)
+end
+
 local function startFling()
     if flinging.val then return end
     flinging.val = true
@@ -281,6 +313,9 @@ local function startFling()
     hideParts()
     startNoclip()
     createRainbow()
+    
+    -- Lock Y-axis for 2 seconds to prevent falling
+    lockYAxis(2)
     
     root.Anchored = true
     
@@ -345,6 +380,11 @@ local function stopFling()
     if flingConn then
         flingConn:Disconnect()
         flingConn = nil
+    end
+    
+    if yLockConn then
+        yLockConn:Disconnect()
+        yLockConn = nil
     end
     
     for _, part in pairs(char:GetDescendants()) do
@@ -549,6 +589,24 @@ tab3:CreateButton({
         end
         
         local flinged = {}
+        local currentTarget = nil
+        
+        -- Start continuous teleport connection
+        if flingAllTpConn then
+            flingAllTpConn:Disconnect()
+        end
+        
+        flingAllTpConn = game:GetService("RunService").Heartbeat:Connect(function()
+            if not flingAll.val or not currentTarget then
+                return
+            end
+            
+            if currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = currentTarget.Character.HumanoidRootPart
+                -- Continuously teleport inside target's torso
+                root.CFrame = targetRoot.CFrame
+            end
+        end)
         
         spawn(function()
             for _, target in pairs(targets) do
@@ -557,9 +615,7 @@ tab3:CreateButton({
                 end
                 
                 if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                    local targetRoot = target.Character.HumanoidRootPart
-                    
-                    root.CFrame = targetRoot.CFrame
+                    currentTarget = target
                     table.insert(flinged, target.Name)
                     
                     rf:Notify({
@@ -569,8 +625,17 @@ tab3:CreateButton({
                         Image = 4483362458
                     })
                     
-                    task.wait(3)
+                    -- Wait 1 second while continuously teleporting inside target
+                    task.wait(1)
                 end
+            end
+            
+            -- Finished flinging all players
+            currentTarget = nil
+            
+            if flingAllTpConn then
+                flingAllTpConn:Disconnect()
+                flingAllTpConn = nil
             end
             
             if root and root.Parent then
@@ -595,7 +660,7 @@ tab3:CreateButton({
 
 tab3:CreateParagraph({
     Title = "How It Works",
-    Content = "Fling All teleports your spinning torso inside each player's body for 3 seconds. Each player is only targeted once. Perfect for clearing servers!"
+    Content = "Fling All teleports your spinning torso inside each player's body for 1 second. Your torso stays locked inside their body until moving to the next target!"
 })
 
 local tab2 = win:CreateTab("Settings", 4483362458)
@@ -648,6 +713,12 @@ tab2:CreateButton({
         end
         if flingConn then
             flingConn:Disconnect()
+        end
+        if yLockConn then
+            yLockConn:Disconnect()
+        end
+        if flingAllTpConn then
+            flingAllTpConn:Disconnect()
         end
         
         for _, obj in pairs(root:GetChildren()) do
@@ -707,4 +778,6 @@ plr.CharacterAdded:Connect(function(newChar)
     if noclipConn then noclipConn:Disconnect() end
     if rainbowConn then rainbowConn:Disconnect() end
     if flingConn then flingConn:Disconnect() end
+    if yLockConn then yLockConn:Disconnect() end
+    if flingAllTpConn then flingAllTpConn:Disconnect() end
 end)
